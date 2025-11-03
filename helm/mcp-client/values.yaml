@@ -1,0 +1,65 @@
+# Default values for mcp-client Helm chart.
+# Override these with --set or a custom values file.
+
+image:
+  repository: docker.io/gabiminz/mcp_client
+  tag: "2586b4b-dirty"
+  pullPolicy: Always
+  # pullSecrets: [] # e.g. - name: myregistrysecret
+
+# Resources
+resources: {}
+#  limits:
+#    cpu: 200m
+#    memory: 256Mi
+#  requests:
+#    cpu: 100m
+#    memory: 128Mi
+
+env: {}
+# Extra environment variables (non-secret). Example:
+#  LOG_LEVEL: INFO
+
+openai:
+  existingSecret: "openai-openai-key" # Name of an existing secret containing OPENAI_API_KEY
+  apiKey: "" # If set (non-empty) a secret will be created (NOT for production)
+  secretKey: OPENAI_API_KEY # Key inside the secret
+
+service:
+  type: ClusterIP
+  port: 9100
+  annotations: {}
+
+config:
+  enabled: true
+  mcp_server:
+    host: mcp-server # Kubernetes service name of the server release
+    port: 8000
+  mcp_client:
+    host: "127.0.0.1"
+    port: 9100
+  rapp:
+    host: "rapp.ricrapp.svc.cluster.local"
+    port: 8090
+
+# Extra labels to add to all resources
+labels: {}
+
+# Pod annotations
+podAnnotations: {}
+
+replicaCount: 1
+
+# Liveness/readiness probe settings (disabled by default because client is interactive)
+probes:
+  enabled: false
+  path: /healthz
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 2
+  failureThreshold: 3
+  successThreshold: 1
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

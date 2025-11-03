@@ -1,0 +1,14 @@
+# config.yaml
+# Example configuration file for intent-mcp
+
+mcp_server:
+  host: "mcp-server.smo"
+  port: 8000
+
+mcp_client:
+  host: "127.0.0.1"
+  port: 9100
+
+rapp:
+  host: "rapp.ricrapp.svc.cluster.local"
+  port: 8090

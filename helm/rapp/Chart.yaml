@@ -1,0 +1,15 @@
+apiVersion: v2
+name: rapp
+description: Helm chart for deploying the rApp component
+version: 0.1.0
+appVersion: "0.1.0"
+type: application
+keywords:
+  - rapp
+  - intent
+home: https://example.com/intent-rapp
+sources:
+  - https://example.com/intent-rapp
+maintainers:
+  - name: intent-maintainer
+    email: maintainer@example.com

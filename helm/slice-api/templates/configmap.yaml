@@ -1,0 +1,12 @@
+{{- if .Values.config.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "slice-api.fullname" . }}-config
+  labels:
+    {{- include "slice-api.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    # Placeholder for future configuration
+    # Add application-specific configuration keys as needed.
+{{- end }}

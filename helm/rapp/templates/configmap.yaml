@@ -1,0 +1,21 @@
+{{- if .Values.config.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "rapp.fullname" . }}-config
+  labels:
+    {{- include "rapp.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    PlmnId:
+      mcc: {{ .Values.config.PlmnId.mcc | quote }}
+      mnc: {{ .Values.config.PlmnId.mnc | quote }}
+    nonrtric:
+      base_url_pms: {{ .Values.config.nonrtric.base_url_pms | quote }}
+      service_id: {{ .Values.config.nonrtric.service_id | quote }}
+      ric_id: {{ .Values.config.nonrtric.ric_id | quote }}
+      policytype_id: {{ .Values.config.nonrtric.policytype_id }}
+    rapp:
+      host: {{ .Values.config.rapp.host | quote }}
+      port: {{ .Values.config.rapp.port }}
+{{- end }}

@@ -1,0 +1,15 @@
+apiVersion: v2
+name: frontend
+description: Helm chart for deploying the frontend component
+version: 0.1.0
+appVersion: "0.1.0"
+type: application
+keywords:
+  - frontend
+  - intent
+home: https://example.com/intent-frontend
+sources:
+  - https://example.com/intent-frontend
+maintainers:
+  - name: intent-maintainer
+    email: maintainer@example.com

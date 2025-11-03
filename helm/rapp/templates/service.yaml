@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "rapp.fullname" . }}
+  labels:
+    {{- include "rapp.labels" . | nindent 4 }}
+  annotations:
+    {{- range $k, $v := .Values.service.annotations }}
+    {{ $k }}: {{ $v | quote }}
+    {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    app.kubernetes.io/name: {{ include "rapp.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP

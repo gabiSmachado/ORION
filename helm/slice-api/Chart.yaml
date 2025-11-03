@@ -1,0 +1,16 @@
+apiVersion: v2
+name: slice-api
+description: Helm chart for deploying the Slice API component
+version: 0.1.0
+appVersion: "0.1.0"
+type: application
+keywords:
+  - slice
+  - api
+  - intent
+home: https://example.com/intent-slice-api
+sources:
+  - https://example.com/intent-slice-api
+maintainers:
+  - name: intent-maintainer
+    email: maintainer@example.com

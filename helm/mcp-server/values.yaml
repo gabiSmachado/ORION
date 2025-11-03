@@ -1,0 +1,57 @@
+# Default values for mcp-server Helm chart.
+# Override these with --set or a custom values file.
+
+image:
+  repository: docker.io/gabiminz/mcp_server
+  tag: "2586b4b-dirty-20251022004539"
+  pullPolicy: Always
+  # pullSecrets: [] # e.g. - name: myregistrysecret
+
+service:
+  type: ClusterIP
+  port: 8000
+  annotations: {}
+
+resources: {}
+#  limits:
+#    cpu: 200m
+#    memory: 256Mi
+#  requests:
+#    cpu: 100m
+#    memory: 128Mi
+
+env: {}
+#  MCP_HOST: 0.0.0.0
+#  MCP_PORT: 8000
+#  NSB_API_ROOT: http://slice-api:8002
+
+config:
+  enabled: true
+  mcp_server:
+    host: 0.0.0.0
+    port: 8000
+  slice_api:
+    host: "slice-api.slice-api"
+    port: 8002
+
+# Extra labels to add to all resources
+labels: {}
+
+# Pod annotations
+podAnnotations: {}
+
+replicaCount: 1
+
+# Liveness/readiness probe settings
+probes:
+  enabled: false
+  path: /healthz
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 2
+  failureThreshold: 3
+  successThreshold: 1
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

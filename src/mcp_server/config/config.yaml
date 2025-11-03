@@ -1,0 +1,10 @@
+# config.yaml
+# Example configuration file for intent-mcp
+
+mcp_server:
+  host: "127.0.0.1"
+  port: 8000
+
+slice_api:
+  host: "slice-api.slice-api"
+  port: 8002

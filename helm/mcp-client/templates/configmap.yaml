@@ -1,0 +1,19 @@
+{{- if .Values.config.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "mcp-client.fullname" . }}-config
+  labels:
+    {{- include "mcp-client.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    mcp_server:
+      host: {{ .Values.config.mcp_server.host | quote }}
+      port: {{ .Values.config.mcp_server.port }}
+    mcp_client:
+      host: {{ .Values.config.mcp_client.host | quote }}
+      port: {{ .Values.config.mcp_client.port }}
+    rapp:
+      host: {{ .Values.config.rapp.host | quote }}
+      port: {{ .Values.config.rapp.port }}  
+{{- end }}

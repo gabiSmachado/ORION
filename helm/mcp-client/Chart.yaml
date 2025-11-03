@@ -1,0 +1,15 @@
+apiVersion: v2
+name: mcp-client
+description: Helm chart for deploying the MCP Client component
+version: 0.1.0
+appVersion: "0.1.0"
+type: application
+keywords:
+  - mcp
+  - client
+home: https://example.com/intent-mcp
+sources:
+  - https://example.com/intent-mcp
+maintainers:
+  - name: intent-maintainer
+    email: maintainer@example.com

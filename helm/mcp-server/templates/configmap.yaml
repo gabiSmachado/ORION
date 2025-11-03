@@ -1,0 +1,16 @@
+{{- if .Values.config.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "mcp-server.fullname" . }}-config
+  labels:
+    {{- include "mcp-server.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    mcp_server:
+      host: {{ .Values.config.mcp_server.host | quote }}
+      port: {{ .Values.config.mcp_server.port }}
+    slice_api:
+      host: {{ .Values.config.slice_api.host | quote }}
+      port: {{ .Values.config.slice_api.port }}
+{{- end }}

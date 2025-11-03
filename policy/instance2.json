@@ -1,0 +1,24 @@
+{
+    "ric_id": "ric4",
+    "policy_id": "48782",
+    "service_id": "intentSlice",
+    "policy_data": {
+        "scope": {
+            "sliceId": {
+                "sst": 1,
+                "sd": "456DEF",
+                "plmnId": {
+                    "mcc": "208",
+                    "mnc": "93"
+                }
+            }
+        },
+        "sliceSlaObjectives": {
+            "maxDlThptPerUe": 50000,
+            "maxUlThptPerUe": 25000,
+            "maxDlThptPerSlice": 300000000,
+            "maxUlThptPerSlice": 150000000
+        }
+    },
+    "policytype_id": 10002
+}

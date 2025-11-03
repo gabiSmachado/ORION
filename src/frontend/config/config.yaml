@@ -1,0 +1,6 @@
+# config.yaml
+# Example configuration file for intent-mcp
+
+mcp_client:
+  host: "mcp-client.smo.svc.cluster.local"
+  port: 9100
