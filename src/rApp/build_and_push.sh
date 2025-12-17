@@ -26,49 +26,38 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SRC_DIR="$(dirname "$SCRIPT_DIR")"
+SRC_DIR="$(dirname "$SCRIPT_DIR")"   # /.../intent-mcp/src
 
 : "${IMAGE_NAME:=rapp}"
+# Provide a default registry like server script (override as needed)
 : "${REGISTRY:=docker.io/gabiminz}"
-: "${PUSH:=1}"
-: "${UNIQUE_TAG:=1}"
+: "${PUSH:=1}"   # Opt-in push
 
 if git -C "$SRC_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   GIT_VER=$(git -C "$SRC_DIR" describe --tags --dirty --always 2>/dev/null || true)
 else
   GIT_VER=""
 fi
-
-ORIG_VERSION="${VERSION:-}"
-if [[ -z "${VERSION:-}" ]]; then
-  BASE_VER="${GIT_VER:-latest}"
-  if [[ "$UNIQUE_TAG" == "1" ]]; then
-    VERSION="${BASE_VER}-$(date +%Y%m%d%H%M%S)"
-  else
-    VERSION="$BASE_VER"
-  fi
-fi
-
-if [[ -n "$ORIG_VERSION" && "$UNIQUE_TAG" == "1" && "$ORIG_VERSION" == "$GIT_VER" ]]; then
-  VERSION="${ORIG_VERSION}-$(date +%Y%m%d%H%M%S)"
-fi
-
+: "${VERSION:=${GIT_VER:-$(date +%Y%m%d%H%M%S)}}"
 : "${DOCKERFILE:=rApp/Dockerfile}"
-: "${CONTEXT:=$SRC_DIR}"
+: "${CONTEXT:=$SRC_DIR}"  # build context root
 
 TAG_LOCAL="$IMAGE_NAME:$VERSION"
 REGISTRY_CLEAN="${REGISTRY%/}"
 TAG_REMOTE="$REGISTRY_CLEAN/$TAG_LOCAL"
 
-printf '==> Build parameters\n'
-printf '    Context:     %s\n' "$CONTEXT"
-printf '    Dockerfile:  %s\n' "$DOCKERFILE"
-printf '    Image name:  %s\n' "$IMAGE_NAME"
-printf '    Version:     %s\n' "$VERSION"
-if [[ -n "$REGISTRY_CLEAN" ]]; then
-  printf '    Registry:    %s\n' "$REGISTRY_CLEAN"
+echo "==> Build parameters"
+echo "    Context:     $CONTEXT"
+echo "    Dockerfile:  $DOCKERFILE"
+echo "    Image name:  $IMAGE_NAME"
+echo "    Version:     $VERSION"
+if [[ -n "$REGISTRY" ]]; then
+  echo "    Registry:    $REGISTRY_CLEAN"
 fi
-printf '\n'
+if [[ -n "${BUILD_ARGS:-}" ]]; then
+  echo "    Build args:  $BUILD_ARGS"
+fi
+echo
 
 echo "==> Building image ($TAG_LOCAL)"
 docker build \
@@ -84,12 +73,12 @@ if [[ -n "$TAG_REMOTE" ]]; then
 fi
 
 if [[ "$PUSH" == "1" ]]; then
-  if [[ -z "$REGISTRY_CLEAN" ]]; then
+  if [[ -z "$REGISTRY" ]]; then
     echo "[WARN] PUSH=1 but REGISTRY not set; skipping push." >&2
   else
     echo "==> Pushing $TAG_REMOTE"
     if ! docker image inspect "$TAG_REMOTE" >/dev/null 2>&1; then
-      echo "[INFO] Remote tag missing locally; re-tagging."
+      echo "[INFO] Remote tag missing locally; re-tagging." 
       docker tag "$TAG_LOCAL" "$TAG_REMOTE"
     fi
     docker push "$TAG_REMOTE"
@@ -99,6 +88,5 @@ else
   echo "==> Skipping push (set PUSH=1 to enable)"
 fi
 
-echo
-printf 'Done. Available local tags:\n'
-docker images | awk -v name="$IMAGE_NAME" 'NR==1 || $1 == name' | head -n 10
+echo -e "\nDone. Available local tags:" 
+docker images | awk 'NR==1 || /'$IMAGE_NAME'/' | head -n 10

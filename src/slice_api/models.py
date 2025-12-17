@@ -39,8 +39,7 @@ class RateUnitEnum(StrEnum):
 NumberOfDevices = Annotated[
     int,
     Field(
-        ge=1,
-        le=20,
+        None,
         description='Maximum number of devices that is allowed to be connected to the network at any point in time.'
     ),
 ]
@@ -48,7 +47,7 @@ NumberOfDevices = Annotated[
 
 class TimePeriod(BaseModel):
     startDate: datetime = Field(
-        ...,
+        None,
         description='An instant of time, starting of the TimePeriod. It must follow [RFC 3339](https://datatracker.ietf.org/doc/html/rfc3339#section-5.6) and must have time zone.',
         example='2024-06-01T12:00:00Z',
     )
@@ -90,7 +89,7 @@ class Rate(BaseModel):
 
 
 class Area(BaseModel):
-    areaType: AreaType
+    areaType: Optional[AreaType]
 
 
 class Point(BaseModel):

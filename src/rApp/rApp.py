@@ -70,7 +70,7 @@ def create_instance(body):
         }
         return JSONResponse(status_code=500, content=payload)
 
-    if resp.status_code != 200:
+    if resp.status_code != 201:
         logger.error(f"Policy creation failed with status {resp.status_code}: {resp.text}")
         payload = {
             "status": "Policy creation failed",
@@ -91,7 +91,8 @@ app = FastAPI()
 
 @app.post("/create_policy")
 async def read_root(body: dict):
-    policy = create_policy(body, ric_id, mcc, mnc, service_id, policytype_id)
+    logger.info(f"Policy request received:{body}")
+    policy = create_policy(body, ric_id, mcc, mnc, service_id, policytype_id,logger)
     instance = create_instance(policy)
     return instance
 

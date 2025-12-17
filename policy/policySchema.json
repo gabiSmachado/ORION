@@ -1,72 +1,101 @@
 {
-    "name": "E2Node Slice-level PRB Quota Schema",
-    "description": "Defines the PRB quota per slice for E2Nodes.",
-    "policy_type_id": 1,
+    "name": "O-RAN standard slice SLA Schema",
+    "description": "Defines the SLA objectives per slice for E2Nodes.",
+    "policy_type_id": 10002,
     "create_schema": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "title": "E2Node Slice-level PRB Quota Configuration",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "O-RAN standard slice SLA policy",
         "type": "object",
         "properties": {
-            "RRMPolicyRatioList": {
-                "type": "array",
-                "description": "A list of RRM policies to configure slice-level PRB quota.",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "plmnId": {
-                            "type": "object",
-                            "description": "Identifies the Public Land Mobile Network with MCC and MNC.",
-                            "properties": {
-                                "mcc": {
-                                    "type": "string",
-                                    "description": "Mobile Country Code."
-                                },
-                                "mnc": {
-                                    "type": "string",
-                                    "description": "Mobile Network Code."
-                                }
-                            },
-                            "required": [
-                                "mcc",
-                                "mnc"
-                            ]
+            "scope": {
+                "SliceId": {
+                    "sst": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 255
+                    },
+                    "sd": {
+                        "type": "string",
+                        "pattern": "^[A-Fa-f0-9]{6}$"
+                    },
+                    "PlmnId": {
+                        "mcc": {
+                            "type": "string",
+                            "pattern": "^[0-9]{3}$"
                         },
-                        "nci": {
-                            "type": "integer",
-                            "description": "Identifies the NR Cell Identity."
-                        },
-                        "sst": {
-                            "type": "integer",
-                            "description": "Identifies a Slice Service Type."
-                        },
-                        "sd": {
-                            "type": "integer",
-                            "description": "Identifies an optional Slice Differentiator of a given Slice Service Type."
-                        },
-                        "minPRB": {
-                            "type": "integer",
-                            "description": "Defines the Min PRB Policy Ratio."
-                        },
-                        "maxPRB": {
-                            "type": "integer",
-                            "description": "Defines the Max PRB Policy Ratio."
+                        "mnc": {
+                            "type": "string",
+                            "pattern": "^[0-9]{2,3}$"
                         }
                     },
-                    "required": [
-                        "plmnId",
-                        "nci",
-                        "sst",
-                        "sd",
-                        "minPRB",
-                        "maxPRB"
-                    ],
-                    "additionalProperties": false
+                    "CId": {
+                        "ncI": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 68719476735
+                        }
+                    }
+                },
+                "SliceType": {
+                    "type": "string"
+                }
+            },
+            "sliceSlaObjectives": {
+                "maxNumberOfUes": {
+                    "type": "number"
+                },
+                "maxNumberOfPduSessions": {
+                    "type": "number"
+                },
+                "guaDlThptPerSlice": {
+                    "type": "number"
+                },
+                "maxDlThptPerSlice": {
+                    "type": "number"
+                },
+                "maxDlThptPerUe": {
+                    "type": "number"
+                },
+                "guaUlThptPerSlice": {
+                    "type": "number"
+                },
+                "maxUlThptPerSlice": {
+                    "type": "number"
+                },
+                "maxUlThptPerUe": {
+                    "type": "number"
+                },
+                "maxDlPacketDelayPerUe": {
+                    "type": "number"
+                },
+                "maxUlPacketDelayPerUe": {
+                    "type": "number"
+                },
+                "maxDlPdcpSduPacketLossRatePerUe": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                },
+                "maxUlRlcSduPacketLossRatePerUe": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                },
+                "maxDlJitterPerUe": {
+                    "type": "number"
+                },
+                "maxUlJitterPerUe": {
+                    "type": "number"
+                },
+                "dlSlicePriority": {
+                    "type": "number",
+                    "minimum": 1
+                },
+                "ulSlicePriority": {
+                    "type": "number",
+                    "minimum": 1
                 }
             }
-        },
-        "required": [
-            "RRMPolicyRatioList"
-        ],
-        "additionalProperties": false
+        }
     }
 }

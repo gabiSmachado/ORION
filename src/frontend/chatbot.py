@@ -2,12 +2,15 @@ import streamlit as st
 import httpx
 from typing import Dict, Any
 import json
+import logging 
 
 class Chatbot:
-    def __init__(self, api_url: str):
+    def __init__(self, api_url: str, logger: logging,):
         self.api_url = api_url
+        self.logger = logger
         self.current_tool_call = {"name": None, "args": None}
-        self.messages = st.session_state["messages"]
+        # Ensure chat history state exists before we try to render it
+        self.messages = st.session_state.setdefault("messages", [])
 
     def display_message(self, message: Dict[str, Any]):
         # display user message
@@ -42,13 +45,11 @@ class Chatbot:
                         "name": content["name"],
                         "args": content["input"],
                     }
-
+ 
     async def render(self):
-        st.title("MCP Client")
-
-        with st.sidebar:
-            st.subheader("Settings")
-            st.write("API URL: ", self.api_url)
+        st.set_page_config(page_title="ORION", page_icon=":material/cell_tower:")
+        st.title("ORION")
+        st.subheader("Intent-Aware Orchestration in Open RAN for SLA-Driven Network Management")    
 
         # Display existing messages
         for message in self.messages:
@@ -57,7 +58,8 @@ class Chatbot:
         # Handle new intent
         intent = st.chat_input("Enter your intent here")
         if intent:
-            st.write(f"Processing intent: {intent}")
+            self.logger.info("Submitting intent: %s", intent)
+            st.write(f"{intent}")
             async with httpx.AsyncClient(timeout=60.0, verify=False) as client:
                 try:
                     response = await client.post(
@@ -65,7 +67,11 @@ class Chatbot:
                         json={"intent": intent},
                         headers={"Content-Type": "application/json"},
                     )
-                    st.write(f"Calling API")
+                    st.write(f"Processing Intent ...")
+                    self.logger.info(
+                        "Received response status %s for intent", response.status_code
+                    )
+
                     if response.status_code == 200:
                         data = response.json()
                         messages = data.get("messages")
@@ -93,16 +99,21 @@ class Chatbot:
                                     st.json(messages, expanded=False)
                                 except Exception:
                                     st.write(str(messages))
+                            self.logger.warning("Unexpected response payload: %s", messages)
                     else:
                         # Show server-provided error details when available
                         try:
                             err = response.json().get("detail")
                         except Exception:
                             err = response.text
+                        self.logger.error(
+                            "API error %s when submitting intent: %s", response.status_code, err
+                        )
                         st.error(
                             f"Frontend: API error {response.status_code}: {err} (URL: {self.api_url}/intent)"
                         )
                 except Exception as e:
+                    self.logger.exception("Error processing intent", exc_info=e)
                     st.error(
                         "Frontend: Error processing intent: "
                         f"{e} (URL: {self.api_url}/intent). "

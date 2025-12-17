@@ -1,5 +1,6 @@
 from math import ceil
 from dataclasses import dataclass
+import logging 
 
 @dataclass
 class MCS:
@@ -335,12 +336,15 @@ def convert_rate_unit(rate: dict | None):
     return numeric_value * multiplier
         
 
-def create_policy(sliceInfo, ric_id, mcc, mnc, service_id, policytype_id):
+def create_policy(sliceInfo, ric_id, mcc, mnc, service_id, policytype_id, logger: logging):
+    logger.info("Policy request received")
     session_info = sliceInfo.get("sessionId") or {}
     policy_id = session_info.get("session_id")
     qos = sliceInfo.get("sliceQosProfile") or {}
     downStreamRate = convert_rate_unit(qos.get("downStreamRatePerDevice"))
     upStreamRate = convert_rate_unit(qos.get("upStreamRatePerDevice"))
+    maxStreamDelay = qos.get("downStreamDelayBudget")
+    sliceType = sliceInfo.get("sliceType")
 
     downPRB = to_prb(downStreamRate, False, 28, 1, 50, is_tdd=False) if downStreamRate is not None else 0
     upPRB = to_prb(upStreamRate, True, 28, 1, 50, is_tdd=False) if upStreamRate is not None else 0
@@ -358,11 +362,13 @@ def create_policy(sliceInfo, ric_id, mcc, mnc, service_id, policytype_id):
                         "mcc": mcc,
                         "mnc": mnc
                     }
-                }
+                },
+                "sliceType": sliceType
             },
             "sliceSlaObjectives": {
                 "maxDlThptPerUe": downPRB,
                 "maxUlThptPerUe": upPRB,
+                "maxDlPacketDelayPerUe": maxStreamDelay
             }
         },
         "policytype_id": policytype_id

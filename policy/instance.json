@@ -1,32 +1,25 @@
 {
     "ric_id": "ric4",
-    "policy_id": "12345",
-    "service_id": "rAppNASP",
+    "policy_id": "48782",
+    "service_id": "intentSlice",
     "policy_data": {
-        "RRMPolicyRatioList": [
-            {
-                "plmnId": {
-                    "mcc": "208",
-                    "mnc": "93"
-                },
-                "nci": 411,
+        "scope": {
+            "sliceId": {
                 "sst": 1,
-                "sd": 4227,
-                "minPRB": 50,
-                "maxPRB": 50
-            },
-            {
+                "sd": "456DEF",
                 "plmnId": {
                     "mcc": "208",
                     "mnc": "93"
-                },
-                "nci": 411,
-                "sst": 2,
-                "sd": 4227,
-                "minPRB": 50,
-                "maxPRB": 50
-            }
-        ]
+                }
+            },
+            "sliceType": "mMTC"
+        },
+        "sliceSlaObjectives": {
+            "maxDlThptPerUe": 50000,
+            "maxUlThptPerUe": 25000,
+            "maxDlThptPerSlice": 300000000,
+            "maxUlThptPerSlice": 150000000
+        }
     },
-    "policytype_id": 1
+    "policytype_id": 10002
 }
