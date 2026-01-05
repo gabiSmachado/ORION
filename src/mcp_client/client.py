@@ -1,23 +1,123 @@
 import asyncio
 import json
-from typing import Optional, Any
+from typing import Optional
 from contextlib import AsyncExitStack
-import re
 from openai import OpenAI
+from anthropic import Anthropic
+from google import genai
+from google.genai import types
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 import logging 
 import requests
+from utils.resolver import resolve_genai_schema
 
 class MCPClient:
-    def __init__(self, api_key: str, logger: logging, rapp: str):
+    def __init__(self, logger: logging, rapp: str):
         self.session: Optional[ClientSession] = None
         self.exit_stack = AsyncExitStack()
-        self.llm = OpenAI(api_key=api_key)
         self.tools = []
         self.messages = []
+        self.genai_messages = []
         self.logger = logger
         self.rapp = rapp
+        self.instructions = None
+        self.llm = None
+        self.llm_model = None
+        
+    async def set_llm(self, llm_model:str, api_key:str):
+        try:
+            self.logger.info(f"Setting llm model: {llm_model}")
+            
+            self.llm_model = llm_model
+            mcp_tools = await self.get_mcp_tools()
+            
+            if llm_model == "openai":
+                self.llm =  OpenAI(api_key=api_key)       
+                self.tools = [
+                    {
+                        "type": "function",
+                        "name": tool.name,
+                        "description": tool.description,
+                        "parameters": tool.inputSchema,
+                    }
+                    for tool in mcp_tools
+                ]
+            elif llm_model == "anthropic":
+                self.llm =  Anthropic(api_key=api_key)
+                self.tools = [
+                    {
+                        "name": tool.name,
+                        "description": tool.description,
+                        "input_schema": tool.inputSchema,
+                    }
+                    for tool in mcp_tools
+                ]
+                
+            elif llm_model == "genai":
+                self.llm =  genai.Client(api_key=api_key)
+                tools_declaration = []
+
+                for tool in mcp_tools:
+                    clean_parameters = resolve_genai_schema(tool.inputSchema)
+                    print(type( tool.inputSchema))
+                    tools_declaration.append({
+                        "name": tool.name,
+                        "description": tool.description,
+                        "parameters": clean_parameters
+                    })
+                tools = types.Tool(function_declarations=tools_declaration)
+                self.tools = types.GenerateContentConfig(tools=[tools])
+
+            self.messages.insert(0, {
+                    "role": "user", 
+                    "content": (
+                        """
+                            You are an assistant that manages network slice reservations for developers via MCP tool calls.
+                            Follow these rules:
+                            1. If the user explicitly requests the minimum throughput (downstream or upstream), reply exactly "Minimum values are not supported" and take no further action.
+                            2. Number of devices (UEs), Service time, and Service area are not required values.
+                            3. Consider the number of UEs/devices only when defined by the user.
+                            4. Ask for throughput/downstream/upstream units only when the user provides a value without any unit. If the value already includes a unit (accept case-insensitive variants such as bps, kbps, Mbps, Gbps, Tbps, Mb/s, megabits per second, etc.), proceed without asking again and reuse that unit.
+                            5. Service time and area stay null unless the user specifies them.
+                            6. If a latency/delay budget is given without a unit, assume "Milliseconds".
+                            7. When a single throughput figure is provided, mirror it for both downstream and upstream unless instructed otherwise.
+                            8. When a single latency figure is provided, mirror it for both downstream and upstream delay budgets unless instructed otherwise.
+                            9. Don't treat mentions of cost or budget as guidance for choosing conservative values, only populate fields that the user requested.
+                            10. All fields stay null unless the user specifies them, never fabricate values.
+                            11. Only reply with plain text when no tool matches.
+                        """
+                    )
+                }
+            )
+
+            # Seed GenAI message stream with the same instruction text
+            try:
+                self.genai_messages.insert(0, types.Content(
+                    role="user",
+                    parts=[types.Part(text=self.messages[0]["content"])],
+                ))
+            except Exception:
+                # If any shape mismatch occurs, skip seeding without breaking other models
+                pass
+
+            self.instructions=(
+                            "Identify the slice type and add it to the tool's output."
+                            "Do not wrap the JSON in code fences or prepend ```json and return it as raw text."
+                            "The JSON must have the same values as the tool output, but with a new value. Example: sliceType:'eMBB'"
+                            "Types of slice:"
+                            "eMBB: Enhanced Mobile Broadband, focuses on delivering high data rates, strong capacity, and consistent user experience."
+                            "Designed for high-bandwidth applications like streaming, gaming, and virtual reality."
+                            "uRRLC: Ultra-Reliable Low Latency Communication, supports critical applications that need a high degree of reliability "
+                            "and very low latency, like drone control, autonomous vehicles, industrial automation, and remote robotic surgery."
+                            "mMTC: Massive Machine Type Communications, intended to connect a vast number of devices, such as those in the "
+                            "Internet of Things (IoT), which requires low data rates."
+                            "Used in applications where many devices are interconnected for purposes like smart sensors, connected homes, building smart cities, or monitoring environments."
+                        )
+            self.logger.info("LLM configuration completed successfully.")
+        except Exception as e:
+            self.logger.error(f"Error seting LLM model: {e}")
+            raise
         
     async def connect_to_server(self, server_url: str):
         """Connect to an MCP server.
@@ -57,64 +157,9 @@ class MCPClient:
                 ) from cre
 
             mcp_tools = await self.get_mcp_tools()
-            self.tools = [
-                {
-                    "type": "function",
-                    "name": tool.name,
-                    "description": tool.description,
-                    "parameters": tool.inputSchema,
-                }
-                for tool in mcp_tools
-            ]
 
             self.logger.info(
-                f"Successfully connected to server. Available tools: {[tool['name'] for tool in self.tools]}"
-            )
-            # Inject a single system message with explicit tool usage guidance
-            # tool_help = []
-            # for t in self.tools:
-            #     if t["name"] == "create_session":
-            #         schema = t.get("parameters", {})
-            #         # Provide a concise distilled schema reference
-            #         tool_help.append(
-            #             "create_session expects JSON like: {\n  \"body\": {\n    \"sliceQosProfile\": {\n      \"maxNumOfDevices\": <1-20>,\n      \"downStreamRatePerDevice\": {\"value\": <0-1024>, \"unit\": one of [bps,kbps,Mbps,Gbps,Tbps]},\n      \"upStreamRatePerDevice\": {\"value\": <0-1024>, \"unit\": ...},\n      \"downStreamDelayBudget\": {\"value\": <>=1, \"unit\": one of [Milliseconds,Seconds,...]},\n      \"upStreamDelayBudget\": {\"value\": <>=1, \"unit\": ...}\n    },\n    \"serviceTime\": {\"startDate\": RFC3339, \"endDate\": RFC3339?}, (optional)\n    \"serviceArea\": { optional description }\n  }\n}. Only call create_session when the user wants to create a new network slice. Do not omit the required 'body' wrapper."
-            #             "The default value for each field of the schema is always null."
-            #         )
-            #     elif t["name"].startswith("get_"):
-            #         tool_help.append(f"{t['name']}: supply required parameters exactly as schema, NEVER empty. If asking for status of a specific session, require session_id UUID.")
-            #     else:
-            #         tool_help.append(f"{t['name']}: follow its schema; do not hallucinate fields.")
-
-            # system_content = (
-            #     "You are an assistant that MUST supply valid JSON arguments for tool calls. "
-            #     "Never call a tool with empty braces if it has required fields. "
-            #     "If the user provides a natural-language description related to slicing, the operations can include creating, deleting, or reading a slice."
-            #     "Only one tool call per user intent unless the user explicitly requests multiple operations.\n\nTool guidance:\n" + "\n".join(tool_help)
-            # )
-            # # Initialize messages with the system prompt exactly once
-            # if not getattr(self, "messages", None):
-            #     self.messages = []
-            # if not any(m.get("role") == "system" for m in self.messages):
-            #     self.messages.insert(0, {"role": "system", "content": system_content})
-            self.messages.insert(0, {
-                    "role": "system", 
-                    "content": (
-                        """
-                            You are an assistant that manages network slice reservations for developers via MCP tool calls.
-                            Follow these rules:
-                            1. Consider the number of UEs/devices only when defined by the user.
-                            2. Ask for throughput/downstream/upstream units only when the user provides a value without any unit. If the value already includes a unit (accept case-insensitive variants such as bps, kbps, Mbps, Gbps, Tbps, Mb/s, megabits per second, etc.), proceed without asking again and reuse that unit.
-                            3. Service time and area stay null unless the user specifies them.
-                            4. If a latency/delay budget is given without a unit, assume "Milliseconds".
-                            5. When a single throughput figure is provided, mirror it for both downstream and upstream unless instructed otherwise.
-                            6. When a single latency figure is provided, mirror it for both downstream and upstream delay budgets unless instructed otherwise.
-                            7. Don't treat mentions of cost or budget as guidance for choosing conservative values, only populate fields that the user requested.
-                            8. All fields stay null unless the user specifies them, never fabricate values.
-                            9. If a tool can satisfy the user's request, you MUST return the JSON object needed for the MCP tool call.
-                            10. Only reply with plain text when no tool matches.
-                        """
-                    )
-                }
+                f"Successfully connected to server. Available tools: {[tool.name for tool in  mcp_tools]}"
             )
             return True
         except Exception as e:
@@ -138,23 +183,62 @@ class MCPClient:
         except Exception as e:
             self.logger.error(f"Failed to call tool: {str(e)}")
             raise Exception(f"Failed to call tool: {str(e)}")
-
+        
     async def process_intent(self, intent: str):
         """Process an intent: prefer an LLM tool call; if none, return the LLM response.
 
-        Returns the OpenAI Responses API response object. If a tool is invoked, also returns
+        Returns the AI Responses API response object. If a tool is invoked, also returns
         the follow-up response after providing the tool result back to the model.
         """
         try:
             user_intent = {"role": "user", "content": intent}
             self.messages.append(user_intent) 
+            # Also track for GenAI as typed Content
+            try:
+                self.genai_messages.append(
+                    types.Content(role="user", parts=[types.Part(text=intent)])
+                )
+            except Exception:
+                pass
             
+            self.logger.info(f"Calling LLM: {self.llm_model}")
+            payload = None
+            if self.llm_model == "openai":
+                payload = await self.call_openai()
+            elif self.llm_model == "anthropic":
+                payload = await self.call_anthropic()
+            elif self.llm_model == "genai":
+                payload = await self.call_genai()
+                
+            try:
+                self.logger.info("Creating policy instance.")
+                policy = requests.post(f"{self.rapp}/create_policy", json=json.loads(payload), verify=False)
+                self.logger.info(f"Policy instance created:{policy}")
+                self.cleanup()
+            except Exception as e:
+                self.logger.error(f"Error creating policy instance.: {str(e)}")
+                raise  
+        except Exception as e:
+            self.logger.error(f"Error processing intent: {e}")
+            raise
+
+    async def cleanup(self):
+        """Clean up resources (close streams & session)."""
+        try:
+            self.logger.info("Shuting down MCP connection.")
+            self.messages = []
+            await self.exit_stack.aclose()
+        except Exception as e:
+            self.logger.error(f"Error during cleanup: {str(e)}")
+
+    async def call_openai(self):
+        try:
             response = self.llm.responses.create(
                 model="gpt-4o-mini",
                 input=self.messages,
                 tools=self.tools
             )
-                
+              
             for item in response.output:
                 if item.type == "message":
                     assistant_message = {
@@ -162,7 +246,8 @@ class MCPClient:
                         "content": item.content[0].text
                     }
                     self.messages.append(assistant_message)
-
+                    self.logger.info("No tool_call found; returning text response.")
+                    return assistant_message
                 elif item.type == "function_call":
                     tool_name = item.name
                     tool_args = item.arguments
@@ -188,56 +273,162 @@ class MCPClient:
                         tool_output = "<no text content>"
                         raise Exception(tool_output)
 
-                    # Append a simple user message with the tool result so model can continue
                     self.messages.append({
                         "role": "user",
                         "content": f"Tool {tool_name} output (call_id={call_id}):\n{tool_output}"
                     })
 
-                   # result = json.loads(tool_output)["messageParsed"]
                     self.logger.info("Setting policy type.")
                     final_response = self.llm.responses.create(
                         model="gpt-4o-mini",
                         input=self.messages,
                         tools=self.tools,
-                        instructions=(
-                            "Identify the slice type and add it to the tool's output."
-                            "Do not wrap the JSON in code fences or prepend ```json and return it as raw text."
-                            "The JSON must have the same values as the tool output, but with a new value. Example: sliceType:'eMBB'"
-                            "Types of slice:"
-                            "eMBB: Enhanced Mobile Broadband, focuses on delivering high data rates, strong capacity, and consistent user experience."
-                            "Designed for high-bandwidth applications like streaming, gaming, and virtual reality."
-                            "uRRLC: Ultra-Reliable Low Latency Communication, supports critical applications that need a high degree of reliability "
-                            "and very low latency, like drone control, autonomous vehicles, industrial automation, and remote robotic surgery."
-                            "mMTC: Massive Machine Type Communications, intended to connect a vast number of devices, such as those in the "
-                            "Internet of Things (IoT), which requires low data rates."
-                            "Used in applications where many devices are interconnected for purposes like smart sensors, connected homes, building smart cities, or monitoring environments."
-                        )
+                        instructions=self.instructions
+                    )
+                    
+                    for item in getattr(final_response, 'output'):
+                            if getattr(item, 'content'):
+                                body = (getattr(item, 'content')[0].text)
+                                response_payload = json.loads(body)
+                                payload = response_payload.get("message")
+                                return payload
+
+        except Exception as e:
+            self.logger.error(f"Error calling LLM: {e}")
+            raise
+
+    async def call_anthropic(self):
+        try:
+            response = self.llm.messages.create(
+                    model="claude-sonnet-4-5",
+                    max_tokens=1000,
+                    messages=self.messages,
+                    tools=self.tools,
+                )
+            
+            if response.content[0].type == "text" and len(response.content) == 1:
+                assistant_message = {
+                    "role": "assistant",
+                    "content": response.content[0].text,
+                }
+                self.messages.append(assistant_message)
+                return assistant_message
+            
+            assistant_message = {
+                "role": "assistant",
+                "content": response.to_dict()["content"],
+            }
+            self.messages.append(assistant_message)  
+
+            for content in response.content:
+                if content.type == "tool_use":
+                    tool_name = content.name
+                    tool_args = content.input
+                    tool_use_id = content.id
+                    
+                    self.logger.info(
+                        f"Calling tool {tool_name} with args {tool_args}"
                     )
                     
                     try:
-                        self.logger.info("Creating policy instance.")
-                        body = (getattr((getattr(final_response, 'output')[0]),'content')[0]).text
-                        response_payload = json.loads(body)
-                        payload = response_payload.get("message")
+                        result = await self.session.call_tool(tool_name, tool_args)
+                        self.logger.info(f"Tool {tool_name} result: {result}...")
                         
-                        policy = requests.post(f"{self.rapp}/create_policy", json=json.loads(payload), verify=False)
-                        self.logger.info(f"Policy instance created:{policy}")
-                        return payload
+                        tool_output=result.content[0].text
+                        self.messages.append({
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "tool_result",
+                                    "tool_use_id": tool_use_id,
+                                    "content": tool_output,
+                                },
+                                {
+                                    "type": "text",
+                                    "text": self.instructions,
+                                },
+                            ],
+                        })
                     except Exception as e:
-                        self.logger.error(f"Error creating policy instance.: {str(e)}")
-                        raise
-    
-            self.logger.info("No tool_call found; returning text response.")
-                    
+                            self.logger.error(f"Error calling tool {tool_name}: {e}")
+                            raise
+                        
+                    self.logger.info("Setting policy type.")
+
+                    final_response = self.llm.messages.create(
+                        model="claude-sonnet-4-5",
+                        max_tokens=1000,
+                        messages=self.messages,
+                        tools=self.tools,
+                    )
+
+                    return final_response.content[0].text
+
         except Exception as e:
-            self.logger.error(f"Error processing intent: {e}")
+            self.logger.error(f"Error calling LLM: {e}")
             raise
-         
-    async def cleanup(self):
-        """Clean up resources (close streams & session)."""
+
+    async def call_genai(self):
         try:
-            self.logger.info("Shuting down MCP connection.")
-            await self.exit_stack.aclose()
+            # Use dedicated typed contents for GenAI
+            response = self.llm.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=self.genai_messages,
+                config=self.tools,
+            )
+
+            # Try to find a function call in any candidate/part
+            function_call = None
+            for cand in getattr(response, "candidates", []):
+                for part in getattr(getattr(cand, "content", None), "parts", []) or []:
+                    if getattr(part, "function_call", None):
+                        function_call = part.function_call
+                        break
+                if function_call:
+                    break
+
+            if function_call:
+                self.logger.info(f"Function to call: {function_call.name}")
+                self.logger.info(f"Arguments: {function_call.args}")
+
+                tool_name = function_call.name
+                tool_args = function_call.args
+
+                self.logger.info(
+                    f"Calling tool {tool_name} with args {tool_args}"
+                )
+
+                try:
+                    result = await self.session.call_tool(tool_name, tool_args)
+                    self.logger.info(f"Tool {tool_name} result: {result}...")
+
+                    tool_output = result.content[0].text
+
+                    self.genai_messages.append(
+                        types.Content(
+                            role="user",
+                            parts=[
+                                types.Part.from_function_response(
+                                    name=tool_name,
+                                    response={"result": tool_output},
+                                ),
+                                types.Part(text=self.instructions),
+                            ],
+                        )
+                    )
+
+                    final_response = self.llm.models.generate_content(
+                        model="gemini-2.5-flash",
+                        contents=self.genai_messages,
+                        config=self.tools,
+                    )
+
+                    return getattr(final_response, "text", None)
+
+                except Exception as e:
+                    self.logger.error(f"Error calling tool {tool_name}: {e}")
+                    raise
+            
         except Exception as e:
-            self.logger.error(f"Error during cleanup: {str(e)}")
+            self.logger.error(f"Error calling LLM: {e}")
+            raise

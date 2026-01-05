@@ -22,12 +22,14 @@ try:
         config_server =  raw_cfg.get('mcp_server', raw_cfg)
         server_url = f"http://{config_server.get('host')}:{config_server.get('port')}/sse"
         
-        # Use a safe default for the client config so calling .get() won't fail
         config_client = raw_cfg.get('mcp_client', raw_cfg)
-        client_host = config_client.get('host', '0.0.0.0')
-        client_port = config_client.get('port', 9100)
+        client_host = config_client.get('host')
+        client_port = config_client.get('port')
+        
         rapp_config = raw_cfg.get('rapp', raw_cfg)
-        rapp_url = f"http://{rapp_config.get('host')}:{rapp_config.get('port')}"              
+        rapp_url = f"http://{rapp_config.get('host')}:{rapp_config.get('port')}"
+
+        llm = raw_cfg.get('llm', raw_cfg)
 except FileNotFoundError:
     print(f"Configuration file not found: {CONFIG_FILE_PATH}")
     logger.info(f"Configuration file not found: {CONFIG_FILE_PATH}")
@@ -37,15 +39,18 @@ except yaml.YAMLError as exc:
     sys.exit(1)
 
 try:  
-    api_key = os.getenv("OPENAI_API_KEY")
+    if llm == "openai":
+        api_key = os.getenv("OPENAI_API_KEY")
+    elif llm == "anthropic":
+        api_key = os.getenv("ANTHROPIC_API_KEY")
 except EnvironmentError:
-    print("Not found an OPENAI_API_KEY in your environment or .env")
+    print("Not found an API_KEY in your environment or .env")
     sys.exit(1)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    client = MCPClient(api_key=api_key, logger=logger, rapp=rapp_url)
+    client = MCPClient(logger=logger, rapp=rapp_url)
     try:
         connected = await client.connect_to_server(server_url)
         if not connected:
@@ -68,6 +73,7 @@ async def process_query(request: IntentRequest):
     """Process a user intent and return updated conversation messages."""
     logger.info(f"Processing intent payload: {request.intent[:120]}...")
     try:
+        await app.state.client.set_llm(llm_model=llm, api_key=api_key)
         messages = await app.state.client.process_intent(request.intent)
         return {"messages": messages}
     except Exception as e:

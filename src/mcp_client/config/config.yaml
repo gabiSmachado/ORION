@@ -12,3 +12,5 @@ mcp_client:
 rapp:
   host: "rapp.ricrapp.svc.cluster.local"
   port: 8090
+
+llm: genai
