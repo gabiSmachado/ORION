@@ -36,12 +36,13 @@ class RateUnitEnum(StrEnum):
 
 
 # Pydantic v2-friendly type aliases
+# Remove artificial upper bound on number of devices.
+# Allow any integer >= 1, matching API expectations.
 NumberOfDevices = Annotated[
     int,
     Field(
         ge=1,
-        le=20,
-        description='Maximum number of devices that is allowed to be connected to the network at any point in time.'
+        description='Maximum number of devices allowed to connect concurrently (no fixed upper limit).'
     ),
 ]
 

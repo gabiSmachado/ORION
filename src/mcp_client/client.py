@@ -54,7 +54,7 @@ class MCPClient:
                     for tool in mcp_tools
                 ]
                 
-            elif llm_model == "genai":
+            elif llm_model == "gemini":
                 self.llm =  genai.Client(api_key=api_key)
                 tools_declaration = []
 
@@ -76,16 +76,17 @@ class MCPClient:
                             You are an assistant that manages network slice reservations for developers via MCP tool calls.
                             Follow these rules:
                             1. If the user explicitly requests the minimum throughput (downstream or upstream), reply exactly "Minimum values are not supported" and take no further action.
-                            2. Number of devices (UEs), Service time, and Service area are not required values.
-                            3. Consider the number of UEs/devices only when defined by the user.
-                            4. Ask for throughput/downstream/upstream units only when the user provides a value without any unit. If the value already includes a unit (accept case-insensitive variants such as bps, kbps, Mbps, Gbps, Tbps, Mb/s, megabits per second, etc.), proceed without asking again and reuse that unit.
-                            5. Service time and area stay null unless the user specifies them.
-                            6. If a latency/delay budget is given without a unit, assume "Milliseconds".
-                            7. When a single throughput figure is provided, mirror it for both downstream and upstream unless instructed otherwise.
-                            8. When a single latency figure is provided, mirror it for both downstream and upstream delay budgets unless instructed otherwise.
-                            9. Don't treat mentions of cost or budget as guidance for choosing conservative values, only populate fields that the user requested.
-                            10. All fields stay null unless the user specifies them, never fabricate values.
-                            11. Only reply with plain text when no tool matches.
+                            2. The number of devices (UEs), service time, and service area are not required values.
+                            3. The number of devices does not have a defined maximum value, as it depends on the value entered by the user.
+                            4. Consider the number of UEs/devices only when defined by the user.
+                            5. Ask for throughput/downstream/upstream units only when the user provides a value without any unit. If the value already includes a unit (accept case-insensitive variants such as bps, kbps, Mbps, Gbps, Tbps, Mb/s, megabits per second, etc.), proceed without asking again and reuse that unit.
+                            6. Service time and area stay null unless the user specifies them.
+                            7. If a latency/delay budget is given without a unit, assume "Milliseconds".
+                            8. When a single throughput figure is provided, mirror it for both downstream and upstream unless instructed otherwise.
+                            9. When a single latency figure is provided, mirror it for both downstream and upstream delay budgets unless instructed otherwise.
+                            10. Don't treat mentions of cost or budget as guidance for choosing conservative values, only populate fields that the user requested.
+                            11. All fields stay null unless the user specifies them, never fabricate values.
+                            12. Only reply with plain text when no tool matches.
                         """
                     )
                 }
@@ -207,14 +208,38 @@ class MCPClient:
                 payload = await self.call_openai()
             elif self.llm_model == "anthropic":
                 payload = await self.call_anthropic()
-            elif self.llm_model == "genai":
-                payload = await self.call_genai()
+            elif self.llm_model == "gemini":
+                payload = await self.call_gemini()
                 
             try:
                 self.logger.info("Creating policy instance.")
-                policy = requests.post(f"{self.rapp}/create_policy", json=json.loads(payload), verify=False)
-                self.logger.info(f"Policy instance created:{policy}")
-                self.cleanup()
+                # payload may already be a dict; only parse if it's a JSON string
+                request_body = payload
+                if isinstance(payload, str):
+                    try:
+                        request_body = json.loads(payload)
+                    except json.JSONDecodeError as jde:
+                        self.logger.error(f"Invalid JSON payload from LLM: {jde}")
+                        raise
+                elif payload is None:
+                    raise ValueError("Empty payload from LLM; cannot create policy")
+
+                policy = requests.post(
+                    f"{self.rapp}/create_policy",
+                    json=request_body,
+                    verify=False,
+                )
+                self.logger.info(f"Policy instance created: status={policy.status_code}")
+                try:
+                    # Prefer JSON content from the rApp API
+                    return policy.json()
+                except ValueError:
+                    # Fallback if the response isn't JSON-encoded
+                    return {
+                        "status": "Policy response",
+                        "code": policy.status_code,
+                        "message": policy.text,
+                    }
             except Exception as e:
                 self.logger.error(f"Error creating policy instance.: {str(e)}")
                 raise  
@@ -368,7 +393,7 @@ class MCPClient:
             self.logger.error(f"Error calling LLM: {e}")
             raise
 
-    async def call_genai(self):
+    async def call_gemini(self):
         try:
             # Use dedicated typed contents for GenAI
             response = self.llm.models.generate_content(

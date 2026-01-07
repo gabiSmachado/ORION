@@ -7,8 +7,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Copy the requirements from the correct location within the build context
-COPY requirements.txt ./requirements.txt
-RUN pip install --no-cache-dir -r ./requirements.txt
+COPY rApp/requirements.txt /app/requirements.txt
+RUN pip install --upgrade pip
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY rApp/rApp.py ./
 COPY rApp/tools.py ./

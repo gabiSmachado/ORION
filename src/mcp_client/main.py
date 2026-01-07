@@ -43,6 +43,8 @@ try:
         api_key = os.getenv("OPENAI_API_KEY")
     elif llm == "anthropic":
         api_key = os.getenv("ANTHROPIC_API_KEY")
+    elif llm == "gemini":
+        api_key = os.getenv("GEMINI_API_KEY")
 except EnvironmentError:
     print("Not found an API_KEY in your environment or .env")
     sys.exit(1)
@@ -75,7 +77,7 @@ async def process_query(request: IntentRequest):
     try:
         await app.state.client.set_llm(llm_model=llm, api_key=api_key)
         messages = await app.state.client.process_intent(request.intent)
-        return {"messages": messages}
+        return messages
     except Exception as e:
         logger.error(f"/intent failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))

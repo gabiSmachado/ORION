@@ -68,50 +68,28 @@ class Chatbot:
                         headers={"Content-Type": "application/json"},
                     )
                     st.write(f"Processing Intent ...")
+                    
                     self.logger.info(
-                        "Received response status %s for intent", response.status_code
+                        "Received response (status %s): %s",
+                        getattr(response, "status_code", "?"),
+                        response.text,
                     )
 
-                    if response.status_code == 200:
-                        data = response.json()
-                        messages = data.get("messages")
-
-                        # Handle list of chat messages (expected shape)
-                        if isinstance(messages, list):
-                            st.session_state["messages"] = messages
-                            for message in st.session_state["messages"]:
-                                self.display_message(message)
-
-                        # If backend returned a dict (e.g., tool/function arguments), show it nicely
-                        elif isinstance(messages, dict):
-                            with st.chat_message("assistant"):
-                                st.write("Received structured result from server:")
-                                st.json(messages, expanded=False)
-
-                        # If nothing returned, inform the user without crashing
-                        elif messages is None:
-                            st.info("The server responded without any messages.")
-
+                    # Try to parse JSON, fallback to plain text
+                    try:
+                        payload = response.json()
+                        # If a message field exists, show it directly; else show JSON
+                        if isinstance(payload, dict):
+                            if "message" in payload:
+                                st.write(payload["message"])
+                            else:
+                                st.json(payload, expanded=False)
                         else:
-                            with st.chat_message("assistant"):
-                                st.write("Unexpected response from server:")
-                                try:
-                                    st.json(messages, expanded=False)
-                                except Exception:
-                                    st.write(str(messages))
-                            self.logger.warning("Unexpected response payload: %s", messages)
-                    else:
-                        # Show server-provided error details when available
-                        try:
-                            err = response.json().get("detail")
-                        except Exception:
-                            err = response.text
-                        self.logger.error(
-                            "API error %s when submitting intent: %s", response.status_code, err
-                        )
-                        st.error(
-                            f"Frontend: API error {response.status_code}: {err} (URL: {self.api_url}/intent)"
-                        )
+                            st.write(str(payload))
+                    except (ValueError, json.JSONDecodeError):
+                        # Not JSON; display the raw text content
+                        st.write(response.text)
+
                 except Exception as e:
                     self.logger.exception("Error processing intent", exc_info=e)
                     st.error(

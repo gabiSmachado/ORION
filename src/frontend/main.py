@@ -21,8 +21,7 @@ async def main():
             host = section.get('host')
             port = section.get('port')
 
-            client_url = "http://127.0.0.1:9100"
-            #f"http://{host}:{port}"
+            client_url = f"http://{host}:{port}"
             logger.info(f"Connecting to {client_url}")
     except FileNotFoundError:
         print(f"Configuration file not found: {CONFIG_FILE_PATH}")

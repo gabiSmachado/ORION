@@ -1,5 +1,5 @@
-fastmcp==2.12.4
+fastmcp==2.14.2
 httpx==0.28.1
-PyYAML==6.0.2
+pydantic==2.12.5
 PyYAML==6.0.3
-starlette==0.48.0
+starlette==0.50.0

@@ -2,8 +2,6 @@
 # MCP Client Dockerfile
 # Build from intent-mcp/src directory:
 #   docker build -f mcp_client/Dockerfile -t mcp_client .
-# Run (provide your OpenAI key):
-#   docker run --rm -e OPENAI_API_KEY=$OPENAI_API_KEY -it mcp_client
 ###############################
 
 FROM python:3.11-slim AS runtime
@@ -14,9 +12,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Install deps
-COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+# Install deps (use service-specific requirements)
+COPY mcp_client/requirements.txt /app/requirements.txt
+RUN pip install --upgrade pip
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
 # Copy client code and any config directory
 COPY mcp_client/client.py ./

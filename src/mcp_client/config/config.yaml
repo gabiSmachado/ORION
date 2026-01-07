@@ -7,10 +7,10 @@ mcp_server:
 
 mcp_client:
   host: "127.0.0.1"
-  port: 9100
+  port: 9200
 
 rapp:
   host: "rapp.ricrapp.svc.cluster.local"
   port: 8090
 
-llm: genai
+llm: openai

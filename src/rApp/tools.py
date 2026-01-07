@@ -345,7 +345,7 @@ def create_policy(sliceInfo, ric_id, mcc, mnc, service_id, policytype_id, logger
     upStreamRate = convert_rate_unit(qos.get("upStreamRatePerDevice"))
     maxStreamDelay = qos.get("downStreamDelayBudget")
     sliceType = sliceInfo.get("sliceType")
-
+    UEs = qos.get("maxNumOfDevices")
     downPRB = to_prb(downStreamRate, False, 28, 1, 50, is_tdd=False) if downStreamRate is not None else 0
     upPRB = to_prb(upStreamRate, True, 28, 1, 50, is_tdd=False) if upStreamRate is not None else 0
 
@@ -366,6 +366,7 @@ def create_policy(sliceInfo, ric_id, mcc, mnc, service_id, policytype_id, logger
                 "sliceType": sliceType
             },
             "sliceSlaObjectives": {
+                "maxNumberOfUes": UEs,
                 "maxDlThptPerUe": downPRB,
                 "maxUlThptPerUe": upPRB,
                 "maxDlPacketDelayPerUe": maxStreamDelay

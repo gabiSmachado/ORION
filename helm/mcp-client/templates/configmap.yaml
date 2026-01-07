@@ -16,4 +16,5 @@ data:
     rapp:
       host: {{ .Values.config.rapp.host | quote }}
       port: {{ .Values.config.rapp.port }}  
+    llm: {{ .Values.config.llm }}  
 {{- end }}
