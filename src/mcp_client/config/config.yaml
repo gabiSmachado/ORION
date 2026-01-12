@@ -14,3 +14,7 @@ rapp:
   port: 8090
 
 llm: openai
+
+test_number: 1
+
+results_path: "/home/vmadmin/intent/src/test"

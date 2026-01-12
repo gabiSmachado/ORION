@@ -29,7 +29,7 @@ SRC_DIR="$(dirname "$SCRIPT_DIR")"   # /.../intent-mcp/src
 
 : "${IMAGE_NAME:=mcp_server}"
 # Default registry user (can override by exporting REGISTRY)
-: "${REGISTRY:=docker.io/gabiminz}"
+: "${REGISTRY:=docker.io/gabrielasmachado}"
 # Default to push every build (set PUSH=0 to skip)
 : "${PUSH:=1}"
 # When set to 1 and VERSION is not provided, append a timestamp for uniqueness

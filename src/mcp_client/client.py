@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 from typing import Optional
 from contextlib import AsyncExitStack
 from openai import OpenAI
@@ -11,9 +12,40 @@ from mcp.client.sse import sse_client
 import logging 
 import requests
 from utils.resolver import resolve_genai_schema
+from pathlib import Path
+from utils.results_file import save_results
+
+
+def _parse_json_from_ai(raw_text: str) -> dict:
+    """Best-effort JSON extraction for occasionally noisy LLM replies."""
+    if not isinstance(raw_text, str):
+        raise ValueError("AI response is not text; cannot parse JSON")
+
+    text = raw_text.strip()
+
+    fence_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", text, re.IGNORECASE)
+    if fence_match:
+        text = fence_match.group(1).strip()
+
+    if text.startswith("{") and text.endswith("}"):
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            pass
+
+    start = text.find("{")
+    end = text.rfind("}")
+    if 0 <= start < end:
+        fragment = text[start : end + 1].strip()
+        try:
+            return json.loads(fragment)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Unable to parse AI JSON response: {exc}") from exc
+
+    raise ValueError("No JSON object found in AI response")
 
 class MCPClient:
-    def __init__(self, logger: logging, rapp: str):
+    def __init__(self, logger: logging, rapp: str, file_path: Path):
         self.session: Optional[ClientSession] = None
         self.exit_stack = AsyncExitStack()
         self.tools = []
@@ -24,6 +56,8 @@ class MCPClient:
         self.instructions = None
         self.llm = None
         self.llm_model = None
+        self.result_file_path = file_path
+        self.results_log = None
         
     async def set_llm(self, llm_model:str, api_key:str):
         try:
@@ -194,6 +228,7 @@ class MCPClient:
         try:
             user_intent = {"role": "user", "content": intent}
             self.messages.append(user_intent) 
+            self.results_log = {"intent": intent}
             # Also track for GenAI as typed Content
             try:
                 self.genai_messages.append(
@@ -206,6 +241,7 @@ class MCPClient:
             payload = None
             if self.llm_model == "openai":
                 payload = await self.call_openai()
+                return payload
             elif self.llm_model == "anthropic":
                 payload = await self.call_anthropic()
             elif self.llm_model == "gemini":
@@ -230,6 +266,9 @@ class MCPClient:
                     verify=False,
                 )
                 self.logger.info(f"Policy instance created: status={policy.status_code}")
+
+                self.cleanup()
+                
                 try:
                     # Prefer JSON content from the rApp API
                     return policy.json()
@@ -263,7 +302,6 @@ class MCPClient:
                 input=self.messages,
                 tools=self.tools
             )
-              
             for item in response.output:
                 if item.type == "message":
                     assistant_message = {
@@ -310,13 +348,20 @@ class MCPClient:
                         tools=self.tools,
                         instructions=self.instructions
                     )
+                    self.results_log.update({"tool_call": response, "type_definition": final_response})
+                    save_results(self.results_log,self.result_file_path)
                     
                     for item in getattr(final_response, 'output'):
-                            if getattr(item, 'content'):
-                                body = (getattr(item, 'content')[0].text)
-                                response_payload = json.loads(body)
-                                payload = response_payload.get("message")
-                                return payload
+                        if getattr(item, 'content'):
+                            body = getattr(item, 'content')[0].text
+                            try:
+                                response_payload = _parse_json_from_ai(body)
+                            except ValueError as exc:
+                                self.logger.error(f"Final OpenAI response is not valid JSON: {exc}")
+                                raise
+
+                            payload = response_payload.get("message", response_payload)
+                            return payload
 
         except Exception as e:
             self.logger.error(f"Error calling LLM: {e}")
@@ -386,7 +431,8 @@ class MCPClient:
                         messages=self.messages,
                         tools=self.tools,
                     )
-
+                    self.results_log.update({"tool_call": response, "type_definition": final_response})
+                    save_results(self.results_log,self.result_file_path)
                     return final_response.content[0].text
 
         except Exception as e:
@@ -447,7 +493,9 @@ class MCPClient:
                         contents=self.genai_messages,
                         config=self.tools,
                     )
-
+                    self.results_log.update({"tool_call": response, "type_definition": final_response})
+                    save_results(self.results_log,self.result_file_path)
+                    
                     return getattr(final_response, "text", None)
 
                 except Exception as e:

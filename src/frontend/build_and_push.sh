@@ -29,7 +29,7 @@ SRC_DIR="$(dirname "$SCRIPT_DIR")"   # /.../intent-mcp/src
 
 : "${IMAGE_NAME:=frontend}"
 # Provide a default registry like server script (override as needed)
-: "${REGISTRY:=docker.io/gabiminz}"
+: "${REGISTRY:=docker.io/gabrielasmachado}"
 : "${PUSH:=1}"   # Opt-in push
 
 if git -C "$SRC_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then

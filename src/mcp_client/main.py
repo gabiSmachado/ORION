@@ -30,6 +30,9 @@ try:
         rapp_url = f"http://{rapp_config.get('host')}:{rapp_config.get('port')}"
 
         llm = raw_cfg.get('llm', raw_cfg)
+        test_number = raw_cfg.get('test_number', raw_cfg)
+        results_path = raw_cfg.get('results_path', raw_cfg)
+        file_path = f"{results_path}/{llm}_{test_number}.csv"
 except FileNotFoundError:
     print(f"Configuration file not found: {CONFIG_FILE_PATH}")
     logger.info(f"Configuration file not found: {CONFIG_FILE_PATH}")
@@ -52,7 +55,7 @@ except EnvironmentError:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    client = MCPClient(logger=logger, rapp=rapp_url)
+    client = MCPClient(logger=logger, rapp=rapp_url, file_path=file_path)
     try:
         connected = await client.connect_to_server(server_url)
         if not connected:

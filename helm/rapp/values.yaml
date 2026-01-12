@@ -2,8 +2,8 @@
 # Override these with --set or a custom values file.
 
 image:
-  repository: docker.io/gabiminz/rapp
-  tag: "a71552e-dirty"
+  repository: docker.io/gabrielasmachado/rapp
+  tag: "d54a989-dirty"
   pullPolicy: Always
   # pullSecrets: [] # e.g. - name: myregistrysecret
 
