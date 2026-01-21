@@ -21,9 +21,16 @@ env: {}
 #  LOG_LEVEL: INFO
 
 openai:
-  existingSecret: "openai-openai-key" # Name of an existing secret containing OPENAI_API_KEY
-  apiKey: "" # If set (non-empty) a secret will be created (NOT for production)
-  secretKey: OPENAI_API_KEY # Key inside the secret
+  existingSecret: "openai-openai-key"
+  secretKey: OPENAI_API_KEY
+
+anthropic:
+  existingSecret: "anthropic-key"
+  secretKey: ANTHROPIC_API_KEY
+
+gemini:
+  existingSecret: "gemini-key"
+  secretKey: GEMINI_API_KEY
 
 service:
   type: ClusterIP
@@ -41,7 +48,7 @@ config:
   rapp:
     host: "rapp.ricrapp.svc.cluster.local"
     port: 8090
-  llm: openai
+  llm: "openai"
   test_number: 1
   results_path: "/app"
 

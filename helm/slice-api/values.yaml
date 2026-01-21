@@ -3,7 +3,7 @@
 
 image:
   repository: docker.io/gabrielasmachado/slice_api
-  tag: "d54a989-dirty"
+  tag: "2642c98-dirty"
   pullPolicy: Always
   # pullSecrets: [] # e.g. - name: myregistrysecret
 

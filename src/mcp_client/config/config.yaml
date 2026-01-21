@@ -7,14 +7,14 @@ mcp_server:
 
 mcp_client:
   host: "127.0.0.1"
-  port: 9100
+  port: 9200
 
 rapp:
   host: "rapp.ricrapp.svc.cluster.local"
   port: 8090
 
-llm: openai
+llm: "anthropic"
 
 test_number: 1
 
-results_path: "/app"
+results_path: "/home/vmadmin/intent/src/test/"

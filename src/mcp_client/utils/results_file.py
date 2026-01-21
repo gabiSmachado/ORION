@@ -1,20 +1,17 @@
 from pathlib import Path
 import csv
-from typing import Iterable, Mapping
 
 
-def save_results(data: Mapping | Iterable[Mapping], file_path: Path):
+def save_results(data: dict, file_path: Path):
     """Persist intent, tool call, and final type definition entries to CSV."""
 
-    fieldnames = ["intent", "tool_call", "type_definition"]
-    rows = data if isinstance(data, Iterable) and not isinstance(data, Mapping) else [data]
-    rows = [row for row in rows if isinstance(row, Mapping)]
-    if not rows:
-        return
-
+    fieldnames = ["intent", "tool_call", "type_definition", "policy"]
     mode = "a" if file_path.is_file() else "w"
-    with open(file_path, mode=mode, newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=fieldnames)
+
+    with file_path.open(mode, newline="") as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
         if mode == "w":
             writer.writeheader()
-        writer.writerows(rows)
+
+        sanitized_row = {name: data.get(name, "") for name in fieldnames}
+        writer.writerow(sanitized_row)

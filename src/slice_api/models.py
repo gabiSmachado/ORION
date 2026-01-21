@@ -89,7 +89,7 @@ class Rate(BaseModel):
 
 
 class Area(BaseModel):
-    areaType: Optional[AreaType]
+    areaType: Optional[AreaType] = Field(default=None)
 
 
 class Point(BaseModel):

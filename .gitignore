@@ -4,3 +4,4 @@
 .env
 *.ipynb
 .github/*
+*.csv

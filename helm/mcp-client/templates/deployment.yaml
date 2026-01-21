@@ -48,6 +48,20 @@ spec:
                   name: {{ if .Values.openai.existingSecret }}{{ .Values.openai.existingSecret }}{{ else }}{{ include "mcp-client.fullname" . }}-openai{{ end }}
                   key: {{ .Values.openai.secretKey }}
             {{- end }}
+            {{- if or .Values.anthropic.apiKey .Values.anthropic.existingSecret }}
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ if .Values.anthropic.existingSecret }}{{ .Values.anthropic.existingSecret }}{{ else }}{{ include "mcp-client.fullname" . }}-anthropic{{ end }}
+                  key: {{ .Values.anthropic.secretKey }}
+            {{- end }}
+            {{- if or .Values.gemini.apiKey .Values.gemini.existingSecret }}
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ if .Values.gemini.existingSecret }}{{ .Values.gemini.existingSecret }}{{ else }}{{ include "mcp-client.fullname" . }}-gemini{{ end }}
+                  key: {{ .Values.gemini.secretKey }}
+            {{- end }}
           volumeMounts:
             {{- if .Values.config.enabled }}
             - name: config

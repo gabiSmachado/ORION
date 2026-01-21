@@ -1,6 +1,7 @@
 from math import ceil
 from dataclasses import dataclass
 import logging 
+import json 
 
 @dataclass
 class MCS:
@@ -338,14 +339,15 @@ def convert_rate_unit(rate: dict | None):
 
 def create_policy(sliceInfo, ric_id, mcc, mnc, service_id, policytype_id, logger: logging):
     logger.info("Policy request received")
-    session_info = sliceInfo.get("sessionId") or {}
-    policy_id = session_info.get("session_id")
-    qos = sliceInfo.get("sliceQosProfile") or {}
+    slice = json.loads(sliceInfo.get("sliceDescription"))
+    policy_id = slice.get("sessionId").get("session_id")
+    qos = slice.get("sliceQosProfile") or {}
     downStreamRate = convert_rate_unit(qos.get("downStreamRatePerDevice"))
     upStreamRate = convert_rate_unit(qos.get("upStreamRatePerDevice"))
     maxStreamDelay = qos.get("downStreamDelayBudget")
     sliceType = sliceInfo.get("sliceType")
     UEs = qos.get("maxNumOfDevices")
+    
     downPRB = to_prb(downStreamRate, False, 28, 1, 50, is_tdd=False) if downStreamRate is not None else 0
     upPRB = to_prb(upStreamRate, True, 28, 1, 50, is_tdd=False) if upStreamRate is not None else 0
 
