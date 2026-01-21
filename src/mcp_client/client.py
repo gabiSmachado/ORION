@@ -1,6 +1,5 @@
 import asyncio
 import json
-import re
 from typing import Optional
 from contextlib import AsyncExitStack
 from openai import OpenAI
@@ -11,38 +10,10 @@ from mcp import ClientSession
 from mcp.client.sse import sse_client
 import logging 
 import requests
-from utils.resolver import resolve_genai_schema
+import utils.resolver as resolver
 from pathlib import Path
 from utils.results_file import save_results
 
-
-def _parse_json_from_ai(raw_text: str) -> dict:
-    """Best-effort JSON extraction for occasionally noisy LLM replies."""
-    if not isinstance(raw_text, str):
-        raise ValueError("AI response is not text; cannot parse JSON")
-
-    text = raw_text.strip()
-
-    fence_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", text, re.IGNORECASE)
-    if fence_match:
-        text = fence_match.group(1).strip()
-
-    if text.startswith("{") and text.endswith("}"):
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            pass
-
-    start = text.find("{")
-    end = text.rfind("}")
-    if 0 <= start < end:
-        fragment = text[start : end + 1].strip()
-        try:
-            return json.loads(fragment)
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"Unable to parse AI JSON response: {exc}") from exc
-
-    raise ValueError("No JSON object found in AI response")
 
 class MCPClient:
     def __init__(self, logger: logging, rapp: str, file_path: Path):
@@ -93,7 +64,7 @@ class MCPClient:
                 tools_declaration = []
 
                 for tool in mcp_tools:
-                    clean_parameters = resolve_genai_schema(tool.inputSchema)
+                    clean_parameters = resolver.resolve_genai_schema(tool.inputSchema)
                     print(type( tool.inputSchema))
                     tools_declaration.append({
                         "name": tool.name,
@@ -107,20 +78,20 @@ class MCPClient:
                     "role": "user", 
                     "content": (
                         """
-                            You are an assistant that manages network slice reservations for developers via MCP tool calls.
-                            Follow these rules:
-                            1. If the user explicitly requests the minimum throughput (downstream or upstream), reply exactly "Minimum values are not supported" and take no further action.
-                            2. The number of devices (UEs), service time, and service area are not required values.
-                            3. The number of devices does not have a defined maximum value, as it depends on the value entered by the user.
-                            4. Consider the number of UEs/devices only when defined by the user.
-                            5. Ask for throughput/downstream/upstream units only when the user provides a value without any unit. If the value already includes a unit (accept case-insensitive variants such as bps, kbps, Mbps, Gbps, Tbps, Mb/s, megabits per second, etc.), proceed without asking again and reuse that unit.
-                            6. Service time and area stay null unless the user specifies them.
-                            7. If a latency/delay budget is given without a unit, assume "Milliseconds".
-                            8. When a single throughput figure is provided, mirror it for both downstream and upstream unless instructed otherwise.
-                            9. When a single latency figure is provided, mirror it for both downstream and upstream delay budgets unless instructed otherwise.
-                            10. Don't treat mentions of cost or budget as guidance for choosing conservative values, only populate fields that the user requested.
-                            11. All fields stay null unless the user specifies them, never fabricate values.
-                            12. Only reply with plain text when no tool matches.
+                        # Identity
+                        You are an assistant that manages network slice reservations for developers via MCP tool calls.
+                        # Instructions
+                        * If the user explicitly requests the minimum throughput (downstream or upstream), reply exactly "Minimum values are not supported" and take no further action.
+                        * The number of devices (UEs), service time, and service area are not required values.
+                        * The number of devices does not have a defined maximum value, as it depends on the value entered by the user.
+                        * Consider the number of UEs/devices only when defined by the user.
+                        * Ask for throughput/downstream/upstream units only when the user provides a value without any unit. If the value already includes a unit (accept case-insensitive variants such as bps, kbps, Mbps, Gbps, Tbps, Mb/s, megabits per second, etc.), proceed without asking again and reuse that unit.
+                        * Service time and area stay null unless the user specifies them.
+                        * If a latency/delay budget is given without a unit, assume "Milliseconds".
+                        * Don't treat mentions of cost or budget as guidance for choosing conservative values, only populate fields that the user requested.
+                        * All fields stay null unless the user specifies them, never fabricate values.
+                        * Only reply with plain text when no tool matches.
+                        * The response must be **exclusively in the JSON format generated by the tool**, **without additional comments, explanations, or phrases outside the standard format**.
                         """
                     )
                 }
@@ -241,47 +212,25 @@ class MCPClient:
             payload = None
             if self.llm_model == "openai":
                 payload = await self.call_openai()
-                return payload
+
             elif self.llm_model == "anthropic":
                 payload = await self.call_anthropic()
             elif self.llm_model == "gemini":
                 payload = await self.call_gemini()
-                
-            try:
-                self.logger.info("Creating policy instance.")
-                # payload may already be a dict; only parse if it's a JSON string
-                request_body = payload
-                if isinstance(payload, str):
-                    try:
-                        request_body = json.loads(payload)
-                    except json.JSONDecodeError as jde:
-                        self.logger.error(f"Invalid JSON payload from LLM: {jde}")
-                        raise
-                elif payload is None:
-                    raise ValueError("Empty payload from LLM; cannot create policy")
 
+            try:
+                self.logger.info(f"Creating policy instance: {payload}")
                 policy = requests.post(
                     f"{self.rapp}/create_policy",
-                    json=request_body,
-                    verify=False,
+                    json=payload,
                 )
-                self.logger.info(f"Policy instance created: status={policy.status_code}")
-
-                self.cleanup()
+                self.logger.info(f"Policy instance status={policy.status_code}")
                 
-                try:
-                    # Prefer JSON content from the rApp API
-                    return policy.json()
-                except ValueError:
-                    # Fallback if the response isn't JSON-encoded
-                    return {
-                        "status": "Policy response",
-                        "code": policy.status_code,
-                        "message": policy.text,
-                    }
+                return policy
             except Exception as e:
                 self.logger.error(f"Error creating policy instance.: {str(e)}")
                 raise  
+            
         except Exception as e:
             self.logger.error(f"Error processing intent: {e}")
             raise
@@ -290,7 +239,6 @@ class MCPClient:
         """Clean up resources (close streams & session)."""
         try:
             self.logger.info("Shuting down MCP connection.")
-            self.messages = []
             await self.exit_stack.aclose()
         except Exception as e:
             self.logger.error(f"Error during cleanup: {str(e)}")
@@ -348,21 +296,17 @@ class MCPClient:
                         tools=self.tools,
                         instructions=self.instructions
                     )
-                    self.results_log.update({"tool_call": response, "type_definition": final_response})
-                    save_results(self.results_log,self.result_file_path)
+                    self.results_log.update({"tool_call": str(response), "type_definition": str(final_response)})
+                    try:
+                        save_results(self.results_log,self.result_file_path)
+                    except Exception as e:
+                        self.logger.error(f"Error saving results file: {e}")
+                        raise
                     
                     for item in getattr(final_response, 'output'):
-                        if getattr(item, 'content'):
-                            body = getattr(item, 'content')[0].text
-                            try:
-                                response_payload = _parse_json_from_ai(body)
-                            except ValueError as exc:
-                                self.logger.error(f"Final OpenAI response is not valid JSON: {exc}")
-                                raise
-
-                            payload = response_payload.get("message", response_payload)
-                            return payload
-
+                            if getattr(item, 'content'):
+                                body = (getattr(item, 'content')[0].text)
+                                return json.loads(body)
         except Exception as e:
             self.logger.error(f"Error calling LLM: {e}")
             raise

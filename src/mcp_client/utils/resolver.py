@@ -1,5 +1,6 @@
 import json
 from typing import Optional, Any, Dict, Set
+import re
 
 def resolve_genai_schema(input_schema: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """Return a copy of the schema with JSON refs flattened for Gemini."""
@@ -43,3 +44,32 @@ def resolve_genai_schema(input_schema: Optional[Dict[str, Any]]) -> Optional[Dic
     if isinstance(flattened, dict):
         flattened.pop("$defs", None)
     return flattened
+
+
+def parse_json_from_ai(raw_text: str) -> dict:
+    """Best-effort JSON extraction for occasionally noisy LLM replies."""
+    if not isinstance(raw_text, str):
+        raise ValueError("AI response is not text; cannot parse JSON")
+
+    text = raw_text.strip()
+
+    fence_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", text, re.IGNORECASE)
+    if fence_match:
+        text = fence_match.group(1).strip()
+
+    if text.startswith("{") and text.endswith("}"):
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            pass
+
+    start = text.find("{")
+    end = text.rfind("}")
+    if 0 <= start < end:
+        fragment = text[start : end + 1].strip()
+        try:
+            return json.loads(fragment)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Unable to parse AI JSON response: {exc}") from exc
+
+    raise ValueError("No JSON object found in AI response")

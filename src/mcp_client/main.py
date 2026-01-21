@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from client import MCPClient
 from dotenv import load_dotenv
 from utils.logger import get_logger
+from pathlib import Path
 
 logger = get_logger("mcp-client", log_file="mcp_client.log", level=20, console_level=20)
 
@@ -32,7 +33,7 @@ try:
         llm = raw_cfg.get('llm', raw_cfg)
         test_number = raw_cfg.get('test_number', raw_cfg)
         results_path = raw_cfg.get('results_path', raw_cfg)
-        file_path = f"{results_path}/{llm}_{test_number}.csv"
+        file_path = Path(f"{results_path}/{llm}_{test_number}.csv")
 except FileNotFoundError:
     print(f"Configuration file not found: {CONFIG_FILE_PATH}")
     logger.info(f"Configuration file not found: {CONFIG_FILE_PATH}")
