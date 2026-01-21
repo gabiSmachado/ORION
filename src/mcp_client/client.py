@@ -209,7 +209,7 @@ class MCPClient:
         self.messages.append(user_intent) 
         try:
             response = self.llm.responses.create(
-                model="gpt-4o-mini",
+                model="gpt-5",
                 input=self.messages,
                 tools=self.tools
             )
@@ -258,12 +258,14 @@ class MCPClient:
                             
                             self.logger.info("Setting policy type.")
                             slice_type_response = self.llm.responses.create(
-                                model="gpt-4o-mini",
+                                model="gpt-5",
                                 input=intent,
                                 instructions=self.instructions
                             )
-                            slice_type = slice_type_response.output[0].content[0].text
-
+                            slice_type = None
+                            for item in slice_type_response.output:
+                                if item.type == "message":
+                                    slice_type = item.content[0].text
                             payload = json.dumps({
                                 "sliceDescription": slice,
                                 "sliceType": slice_type
@@ -287,7 +289,7 @@ class MCPClient:
         self.messages.append(user_intent) 
         try:
             response = self.llm.messages.create(
-                    model="claude-sonnet-4-5",
+                    model="claude-opus-4-5",
                     max_tokens=1000,
                     messages=self.messages,
                     tools=self.tools,
@@ -352,7 +354,7 @@ class MCPClient:
 
                     intent_type = f"intent:{intent}{self.instructions}"
                     slice_type_response = self.llm.messages.create(
-                        model="claude-sonnet-4-5",
+                        model="claude-opus-4-5",
                         max_tokens=1000,
                         messages=[
                             {

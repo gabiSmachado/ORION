@@ -39,20 +39,20 @@ class RateUnitEnum(StrEnum):
 NumberOfDevices = Annotated[
     int,
     Field(
-        None,
+        ...,
         description='Maximum number of devices that is allowed to be connected to the network at any point in time.'
     ),
 ]
 
 
 class TimePeriod(BaseModel):
-    startDate: datetime = Field(
-        None,
+    startDate: Optional[datetime] = Field(
+        ...,
         description='An instant of time, starting of the TimePeriod. It must follow [RFC 3339](https://datatracker.ietf.org/doc/html/rfc3339#section-5.6) and must have time zone.',
         example='2024-06-01T12:00:00Z',
     )
     endDate: Optional[datetime] = Field(
-        None,
+        ...,
         description='An instant of time, ending of the TimePeriod. If not included, then the period has no ending date. It must follow [RFC 3339](https://datatracker.ietf.org/doc/html/rfc3339#section-5.6) and must have time zone.',
         example='2024-06-02T12:00:00Z',
     )
@@ -76,14 +76,14 @@ Longitude = Annotated[
 
 class Duration(BaseModel):
     value: Optional[conint(ge=1)] = Field(
-        None, description='Length of duration', example=12
+        ..., description='Length of duration', example=12
     )
     unit: Optional[TimeUnitEnum] = None
 
 
 class Rate(BaseModel):
     value: Optional[conint(ge=0, le=1024)] = Field(
-        None, description='Quantity of rate', example=10
+        ..., description='Quantity of rate', example=10
     )
     unit: Optional[RateUnitEnum] = None
 
@@ -99,23 +99,23 @@ class Point(BaseModel):
 
 class SliceQosProfile(BaseModel):
     maxNumOfDevices: Optional[NumberOfDevices] = Field(
-        None,
+        ...,
         description='maxNumOfDevices is a maximum number of devices that can be connected to the slice\n',
     )
     downStreamRatePerDevice: Optional[Rate] = Field(
-        None,
+        ...,
         description='downStreamRatePerDevice is the maximum downstream rate allowed for each device connected to the slice.\nIt indicates the individual device capability required for the slice.\n',
     )
     upStreamRatePerDevice: Optional[Rate] = Field(
-        None,
+        ...,
         description='upStreamRatePerDevice is the maximum upstream rate allowed for each device connected to the slice.\nIt indicates the individual device capability required for the slice.\n',
     )
     downStreamDelayBudget: Optional[Duration] = Field(
-        None,
+        ...,
         description='downStreamDelayBudget is the maximum allowable downlink packet transmission latency (millisecond).\nBy limiting the delay, the network can provide an acceptable level of performance for various services, such as voice calls, video streaming, and data.\n',
     )
     upStreamDelayBudget: Optional[Duration] = Field(
-        None,
+        ...,
         description='upStreamDelayBudget is the maximum allowable uplink packet transmission latency (millisecond).\nBy limiting the delay, the network can provide an acceptable level of performance for various services, such as voice calls, video streaming, and data.\n',
     )
 
@@ -138,14 +138,14 @@ PointList: TypeAlias = Annotated[
 
 class CreateSession(BaseModel):
     serviceTime: Optional[TimePeriod] = Field(
-        None,
+        ...,
         description='serviceTime is a period during which the network slice will be reserved.\nIt is defined by a start time and an end time.\n',
     )
     serviceArea: Optional[Area] = Field(
-        None,
+        ...,
         description='serviceArea is a geographical area where the network slice will be reserved.\nIt can be defined as a circle or a polygon.\n',
     )
-    sliceQosProfile: SliceQosProfile = Field(
+    sliceQosProfile: Optional[SliceQosProfile] = Field(
         ...,
         description='sliceQosProfile is a set of quality of service parameters that define the requirements for the network slice.\nIt includes parameters such as maximum number of devices, downlink and uplink throughput per device, and latency requirements.\n',
     )
