@@ -13,8 +13,8 @@ rapp:
   host: "rapp.ricrapp.svc.cluster.local"
   port: 8090
 
-llm: "anthropic"
+llm:
+  name: "anthropic"
+  model: "claude-sonnet-4-5"
 
-test_number: 1
-
-results_path: "/home/vmadmin/intent/src/test/"
+results_path: "/app"

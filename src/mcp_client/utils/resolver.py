@@ -1,5 +1,5 @@
 import json
-from typing import Optional, Any, Dict, Set
+from typing import Optional, Any, Dict, Set, List
 import re
 
 def resolve_genai_schema(input_schema: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -11,6 +11,42 @@ def resolve_genai_schema(input_schema: Optional[Dict[str, Any]]) -> Optional[Dic
     schema_dict = json.loads(json.dumps(input_schema))
     defs = schema_dict.get("$defs", {})
     resolving: Set[str] = set()
+
+    def normalize_any_of(schema_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """Gemini requires anyOf to be the only key at its level."""
+
+        any_of = schema_dict.get("anyOf")
+        if not isinstance(any_of, list):
+            return {"anyOf": any_of}
+
+        meta = {k: v for k, v in schema_dict.items() if k != "anyOf"}
+        cleaned_options: List[Any] = []
+        for option in any_of:
+            cleaned_options.append(option)
+
+        non_null_options = [
+            option
+            for option in cleaned_options
+            if not (isinstance(option, dict) and option.get("type") == "null")
+        ]
+        has_null = len(non_null_options) != len(cleaned_options)
+
+        if has_null and len(non_null_options) == 1:
+            merged = dict(non_null_options[0])
+            merged.update({k: v for k, v in meta.items() if k not in ("anyOf",)})
+            merged["nullable"] = True
+            return merged
+
+        transferable = {
+            key: value for key, value in meta.items() if key in {"title", "description"}
+        }
+        if transferable:
+            for option in cleaned_options:
+                if isinstance(option, dict):
+                    for t_key, t_val in transferable.items():
+                        option.setdefault(t_key, t_val)
+
+        return {"anyOf": cleaned_options}
 
     def resolve(node: Any) -> Any:
         if isinstance(node, dict):
@@ -33,7 +69,11 @@ def resolve_genai_schema(input_schema: Optional[Dict[str, Any]]) -> Optional[Dic
                 merged = {}
                 merged.update(base)
                 merged.update(resolved)
+                if "anyOf" in merged:
+                    return normalize_any_of(merged)
                 return merged
+            if "anyOf" in resolved:
+                return normalize_any_of(resolved)
             return resolved
 
         if isinstance(node, list):

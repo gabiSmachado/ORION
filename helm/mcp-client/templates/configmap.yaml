@@ -16,7 +16,8 @@ data:
     rapp:
       host: {{ .Values.config.rapp.host | quote }}
       port: {{ .Values.config.rapp.port }}  
-    llm: {{ .Values.config.llm }} 
-    test_number: {{ .Values.config.test_number }}  
+    llm:
+      name: {{ .Values.config.llm.name | quote }}
+      model: {{ .Values.config.llm.model }}  
     results_path: {{ .Values.config.results_path }}  
 {{- end }}

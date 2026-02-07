@@ -25,13 +25,15 @@ class MCPClient:
         self.rapp = rapp
         self.instructions = None
         self.llm = None
+        self.llm_name = None
         self.llm_model = None
         self.result_file_path = file_path
         
-    async def set_llm(self, llm_model:str, api_key:str):
+    async def set_llm(self, llm_name:str,llm_model:str, api_key:str):
         try:
-            self.logger.info(f"Setting llm model: {llm_model}")
+            self.logger.info(f"Setting llm {llm_name} - model {llm_model}")
             
+            self.llm_name = llm_name
             self.llm_model = llm_model
             mcp_tools = await self.get_mcp_tools()
 
@@ -50,7 +52,7 @@ class MCPClient:
                         """
             )
             
-            if llm_model == "openai":
+            if llm_name == "openai":
                 self.llm =  OpenAI(api_key=api_key)       
                 self.tools = [
                     {
@@ -61,7 +63,7 @@ class MCPClient:
                     }
                     for tool in mcp_tools
                 ]
-            elif llm_model == "anthropic":
+            elif llm_name == "anthropic":
                 self.llm =  Anthropic(api_key=api_key)
                 self.tools = [
                     {
@@ -72,7 +74,7 @@ class MCPClient:
                     for tool in mcp_tools
                 ]
                 
-            elif llm_model == "gemini":
+            elif llm_name == "gemini":
                 self.llm =  genai.Client(api_key=api_key)
                 tools_declaration = []
 
@@ -90,7 +92,7 @@ class MCPClient:
                     parts=[types.Part(text=initial_prompt)],
                 ))
 
-            if llm_model != "gemini":
+            if llm_name != "gemini":
                 self.messages.insert(0, {
                         "role": "user", 
                         "content": initial_prompt
@@ -184,12 +186,12 @@ class MCPClient:
         the follow-up response after providing the tool result back to the model.
         """
         try:
-            self.logger.info(f"Calling LLM: {self.llm_model}")
-            if self.llm_model == "openai":
+            self.logger.info(f"Calling LLM: {self.llm_name}")
+            if self.llm_name == "openai":
                 return await self.call_openai(intent)
-            elif self.llm_model == "anthropic":
+            elif self.llm_name == "anthropic":
                 return await self.call_anthropic(intent)
-            elif self.llm_model == "gemini":
+            elif self.llm_name == "gemini":
                 return await self.call_gemini(intent)
                 
         except Exception as e:
@@ -206,13 +208,15 @@ class MCPClient:
 
     async def call_openai(self, intent: str):
         user_intent = {"role": "user", "content": intent}
-        self.messages.append(user_intent) 
+        self.messages.append(user_intent)
+        results_log = {}
         try:
             response = self.llm.responses.create(
-                model="gpt-5",
+                model=self.llm_model,
                 input=self.messages,
                 tools=self.tools
             )
+            results_log = {"intent": intent}
             self.logger.info(f"Assistant response: {response}")
             for item in response.output:
                 if item.type == "message":
@@ -222,14 +226,7 @@ class MCPClient:
                     }
                     self.messages.append(assistant_message)
                     self.logger.info("No tool_call found; returning text response.")
-                    results_log = {"intent": intent, "tool_call": str(response)}
-                    try:
-                        self.logger.info("Saving results file.")
-                        save_results(results_log,self.result_file_path)
-                        self.logger.info("File saved successfully.")
-                    except Exception as e:
-                        self.logger.error(f"Error saving results file: {e}")
-                        raise
+                    results_log = {"intent": intent, "intent_processing": str(response)}
                     return assistant_message
                 elif item.type == "function_call":
                     tool_name = item.name
@@ -242,6 +239,7 @@ class MCPClient:
                             tool_name, json.loads(tool_args)
                         )
                         self.logger.info(f"Tool result: {tool_result}")
+                        results_log = {"intent": intent, "intent_processing": str(response), "tool_call": str(tool_result)}
                     except Exception as e:
                         error_msg = f"Tool execution failed for {tool_name}: {str(e)}"
                         self.logger.error(error_msg)
@@ -258,7 +256,7 @@ class MCPClient:
                             
                             self.logger.info("Setting policy type.")
                             slice_type_response = self.llm.responses.create(
-                                model="gpt-5",
+                                model=self.llm_model,
                                 input=intent,
                                 instructions=self.instructions
                             )
@@ -271,30 +269,33 @@ class MCPClient:
                                 "sliceType": slice_type
                             })
                             policy = await self.slice_request(payload)
-                            results_log = {"intent": intent, "tool_call": str(response), "type_definition": str(slice_type_response), "policy": policy.text}
-                            try:
-                                self.logger.info("Saving results file.")
-                                save_results(results_log,self.result_file_path)
-                                self.logger.info("File saved successfully.")
-                            except Exception as e:
-                                self.logger.error(f"Error saving results file: {e}")
-                                raise
+                            results_log = {"intent": intent, "intent_processing": str(response), "tool_call": str(tool_result), "type_definition": str(slice_type_response), "policy": policy.text}
                             return policy.text
         except Exception as e:
             self.logger.error(f"Error calling LLM: {e}")
             raise
+        finally:
+            try:
+                self.logger.info("Saving results file.")
+                save_results(results_log,self.result_file_path)
+                self.logger.info("File saved successfully.")
+            except Exception as e:
+                self.logger.error(f"Error saving results file: {e}")
+                raise
 
     async def call_anthropic(self, intent: str):
         user_intent = {"role": "user", "content": intent}
-        self.messages.append(user_intent) 
+        self.messages.append(user_intent)
+        self._repair_anthropic_messages()
+        results_log = {}
         try:
             response = self.llm.messages.create(
-                    model="claude-opus-4-5",
+                    model=self.llm_model,
                     max_tokens=1000,
                     messages=self.messages,
                     tools=self.tools,
                 )
-            
+            results_log = {"intent": intent}
             self.logger.info(f"Assistant response: {response}")
             if response.content[0].type == "text" and len(response.content) == 1:
                 assistant_message = {
@@ -303,14 +304,7 @@ class MCPClient:
                 }
                 self.messages.append(assistant_message)
                 results_log = {"intent": intent, "tool_call": str(response)}
-                try:
-                    self.logger.info("Saving results file.")
-                    save_results(results_log,self.result_file_path)
-                    self.logger.info("File saved successfully.")
-                except Exception as e:
-                    self.logger.error(f"Error saving results file: {e}")
-                    raise
-                self.logger.info("No tool_call found; returning text response.")
+                self.logger.info("No tool_call found; returning text response.")  
                 return assistant_message
             
             assistant_message = {
@@ -331,7 +325,7 @@ class MCPClient:
                     
                     try:
                         tool_result = await self.session.call_tool(tool_name, tool_args)
-                        
+                        results_log = {"intent": intent, "intent_processing": str(response), "tool_call": str(tool_result)}
                         self.logger.info(f"Tool {tool_name} result: {tool_result}...")
                     except Exception as e:
                         self.logger.error(f"Error calling tool {tool_name}: {e}")
@@ -354,7 +348,7 @@ class MCPClient:
 
                     intent_type = f"intent:{intent}{self.instructions}"
                     slice_type_response = self.llm.messages.create(
-                        model="claude-opus-4-5",
+                        model=self.llm_model,
                         max_tokens=1000,
                         messages=[
                             {
@@ -371,29 +365,68 @@ class MCPClient:
                                 "sliceType": slice_type
                             })
                     policy = await self.slice_request(payload)
-                    results_log = {"intent": intent, "tool_call": str(response), "type_definition": str(slice_type_response), "policy": policy.text}
-                    try:
-                        self.logger.info("Saving results file.")
-                        save_results(results_log,self.result_file_path)
-                        self.logger.info("File saved successfully.")
-                    except Exception as e:
-                        self.logger.error(f"Error saving results file: {e}")
-                        raise
+                    results_log = {"intent": intent, "intent_processing": str(response), "tool_call": str(tool_result), "type_definition": str(slice_type_response), "policy": policy.text}
                     return policy.text
         except Exception as e:
             self.logger.error(f"Error calling LLM: {e}")
             raise
+        finally:
+            try:
+                self.logger.info("Saving results file.")
+                save_results(results_log,self.result_file_path)
+                self.logger.info("File saved successfully.")
+            except Exception as e:
+                self.logger.error(f"Error saving results file: {e}")
+                raise
 
+    def _message_has_block(self, message: dict, block_type: str) -> bool:
+        content = message.get("content")
+        if not isinstance(content, list):
+            return False
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == block_type:
+                return True
+        return False
+
+    def _repair_anthropic_messages(self):
+        if self.llm_name != "anthropic" or not self.messages:
+            return
+        repaired = []
+        pending_tool_use = False
+        for message in self.messages:
+            if pending_tool_use:
+                if self._message_has_block(message, "tool_result"):
+                    pending_tool_use = False
+                else:
+                    if repaired:
+                        repaired.pop()
+                        self.logger.warning(
+                            "Removed assistant tool_use without tool_result to satisfy Claude API ordering."
+                        )
+                    pending_tool_use = False
+            repaired.append(message)
+            if message.get("role") == "assistant" and self._message_has_block(message, "tool_use"):
+                pending_tool_use = True
+        if pending_tool_use and repaired:
+            repaired.pop()
+            self.logger.warning(
+                "Dropped dangling assistant tool_use with no tool_result to prevent Claude API errors."
+            )
+        if repaired != self.messages:
+            self.messages = repaired
+            
     async def call_gemini(self, intent: str):
         user_intent = types.Content(role="user", parts=[types.Part(text=intent)])
         self.messages.append(user_intent)
+        results_log = {}
         try:
             # Use dedicated typed contents for GenAI
             response = self.llm.models.generate_content(
-                model="gemini-2.5-flash",
+                model=self.llm_model,
                 contents=self.messages,
                 config=self.tools,
             )
+            results_log = {"intent": intent}
             self.logger.info(f"Assistant response: {response}")
             for cand in getattr(response, "candidates", []):
                 for part in getattr(getattr(cand, "content", None), "parts", []) or []:
@@ -407,13 +440,6 @@ class MCPClient:
                         }
                         self.logger.info("No tool_call found; returning text response.")
                         results_log = {"intent": intent, "tool_call": str(response)}
-                        try:
-                            self.logger.info("Saving results file.")
-                            save_results(results_log,self.result_file_path)
-                            self.logger.info("File saved successfully.")
-                        except Exception as e:
-                            self.logger.error(f"Error saving results file: {e}")
-                            raise
                         return assistant_message
                     
             if function_call:
@@ -424,6 +450,7 @@ class MCPClient:
                 )
                 try:
                     tool_result = await self.session.call_tool(tool_name, tool_args)
+                    results_log = {"intent": intent, "intent_processing": str(response), "tool_call": str(tool_result)}
                     self.logger.info(f"Tool result: {tool_result}")
                 except Exception as e:
                     self.logger.error(f"Error calling tool {tool_name}: {e}")
@@ -435,7 +462,7 @@ class MCPClient:
 
                 self.logger.info("Setting policy type.")
                 slice_type_response = self.llm.models.generate_content(
-                    model="gemini-2.5-flash",
+                    model=self.llm_model,
                     contents=user_intent,
                     config=types.GenerateContentConfig( system_instruction=self.instructions)
                 )
@@ -451,18 +478,19 @@ class MCPClient:
                             })
                 
                 policy = await self.slice_request(payload)
-                results_log = {"intent": intent, "tool_call": str(response), "type_definition": str(slice_type_response), "policy": policy.text}
-                try:
-                    self.logger.info("Saving results file.")
-                    save_results(results_log,self.result_file_path)
-                    self.logger.info("File saved successfully.")
-                except Exception as e:
-                    self.logger.error(f"Error saving results file: {e}")
-                    raise
+                results_log = {"intent": intent, "intent_processing": str(response), "tool_call": str(tool_result), "type_definition": str(slice_type_response), "policy": policy.text}
                 return policy.text
         except Exception as e:
             self.logger.error(f"Error calling LLM: {e}")
             raise
+        finally:
+            try:
+                self.logger.info("Saving results file.")
+                save_results(results_log,self.result_file_path)
+                self.logger.info("File saved successfully.")
+            except Exception as e:
+                self.logger.error(f"Error saving results file: {e}")
+                raise
         
     async def slice_request(self, payload : str):
         try:

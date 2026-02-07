@@ -3,7 +3,7 @@
 
 image:
   repository: docker.io/gabrielasmachado/mcp_client
-  tag: "da344jhd"
+  tag: "d827051-dirty"
   pullPolicy: Always
   # pullSecrets: [] # e.g. - name: myregistrysecret
 
@@ -48,8 +48,9 @@ config:
   rapp:
     host: "rapp.ricrapp.svc.cluster.local"
     port: 8090
-  llm: "anthropic"
-  test_number: 1
+  llm:
+    name: "anthropic"
+    model: "claude-sonnet-4-5"
   results_path: "/app"
 
 # Extra labels to add to all resources

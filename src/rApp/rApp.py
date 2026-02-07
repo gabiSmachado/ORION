@@ -82,9 +82,9 @@ def create_instance(body):
     policy_id = body.get("policy_id")
     logger.info("Policy created successfully")
     payload = {
-        "status": "Policy created successfully",
+        "status": f"Policy created successfully (policy_id={policy_id})",
         "code": 200,
-        "message": f"Policy created successfully (policy_id={policy_id})",
+        "message": f"Policy: {body}",
     }
     return JSONResponse(status_code=200, content=payload)
 app = FastAPI()

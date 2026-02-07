@@ -30,10 +30,11 @@ try:
         rapp_config = raw_cfg.get('rapp', raw_cfg)
         rapp_url = f"http://{rapp_config.get('host')}:{rapp_config.get('port')}"
 
-        llm = raw_cfg.get('llm', raw_cfg)
-        test_number = raw_cfg.get('test_number', raw_cfg)
+        llm_config = raw_cfg.get('llm', raw_cfg)
+        llm = llm_config.get('name')
+        model = llm_config.get('model')
         results_path = raw_cfg.get('results_path', raw_cfg)
-        file_path = Path(f"{results_path}/{llm}_{test_number}.csv")
+        file_path = Path(f"{results_path}/{llm}.csv")
 except FileNotFoundError:
     print(f"Configuration file not found: {CONFIG_FILE_PATH}")
     logger.info(f"Configuration file not found: {CONFIG_FILE_PATH}")
@@ -79,7 +80,7 @@ async def process_query(request: IntentRequest):
     """Process a user intent and return updated conversation messages."""
     logger.info(f"Processing intent payload: {request.intent[:120]}...")
     try:
-        await app.state.client.set_llm(llm_model=llm, api_key=api_key)
+        await app.state.client.set_llm(llm_name=llm,llm_model=model, api_key=api_key)
         messages = await app.state.client.process_intent(request.intent)
         return messages
     except Exception as e:

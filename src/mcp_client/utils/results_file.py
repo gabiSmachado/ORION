@@ -5,7 +5,7 @@ import csv
 def save_results(data: dict, file_path: Path):
     """Persist intent, tool call, and final type definition entries to CSV."""
 
-    fieldnames = ["intent", "tool_call", "type_definition", "policy"]
+    fieldnames = ["intent", "intent_processing", "tool_call", "type_definition", "policy"]
     mode = "a" if file_path.is_file() else "w"
 
     with file_path.open(mode, newline="") as csv_file:
